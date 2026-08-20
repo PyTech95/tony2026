@@ -142,3 +142,14 @@ Built this iteration (Zoom, per user ordering):
 - Verified: /api/health ok (3 users/programs, 4 workshops/products, 28 class instances), admin login (admin token), public /api/programs 200, /api/admin/dashboard 200, homepage renders live against backend.
 - deployment_agent: PASS (no hardcoded URLs/secrets, CORS ok, /api prefix + /api/health, idempotent seed, no destructive startup).
 - To go live: user clicks the Deploy button in the Emergent UI (CORS auto-updated at deploy).
+
+## Iteration 26 (2026-06) — Closing the 5 spec gaps
+Audited the full product spec against the 25-iteration codebase (~95% already built). Implemented the 5 genuinely-missing items:
+1. Community Leaderboard — backend routers/leaderboard.py (GET /api/leaderboard, points = lessons*10 + attendance*8 + certs*50 + longest_streak*3; privacy-aware first-name-only, staff excluded, optional settings kill-switch leaderboard_enabled). Frontend Leaderboard.jsx page + /leaderboard route + Profile link.
+2. Gift cards — routers/giftcards.py (admin create/list/deactivate, student redeem->store_credit, /me/store-credit, check). ATOMIC redeem via find_one_and_update (no double-spend). Admin console "Gift Cards" tab (GiftCardsPane) + Profile redeem UI + store-credit balance.
+3. Certificates CSV export — GET /api/admin/certificates/export.csv + button in admin Students pane.
+4. Assignment retry limits — max_attempts added to lesson models + admin lesson editor field; enforced in submissions.create_submission; GET /api/submissions/attempts/{lesson_id}; student AssignmentPanel shows remaining/lockout.
+5. In-app Notification Center — routers/notifications.py (GET /api/notifications aggregates announcements + published broadcasts + expiring recordings; unread vs users.notifications_seen_at; POST /notifications/seen). NotificationBell.jsx bell + dropdown wired into AppShell for logged-in users.
+Registered new routers in server.py. Demo accounts confirmed seeded: student@demo.com/Student2026!, instructor@demo.com/Instructor2026!.
+Verified: testing agent iteration_26 — 100% backend (26/26) + 100% frontend (all 5 flows). Applied money-safety hardening (atomic gift-card redeem, deactivate guards active-only). Curl re-verified redeem 200 -> double 400 -> invalid 404.
+Still-open (spec 'future'/optional, not built): leaderboard admin toggle UI, gift-card application at gateway checkout (credit is tracked/visible only), notification timestamp datetime-normalisation.

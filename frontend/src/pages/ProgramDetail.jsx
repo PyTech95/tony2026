@@ -159,9 +159,15 @@ export default function ProgramDetail() {
 function AssignmentPanel({ lesson, onDone }) {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [attempts, setAttempts] = useState(null);
   const sub = lesson.my_submission;
   const threshold = lesson.pass_threshold || 60;
   const passed = sub && sub.status === "scored" && (sub.score || 0) >= threshold;
+
+  const loadAttempts = () => api.get(`/submissions/attempts/${lesson.id}`).then(({ data }) => setAttempts(data)).catch(() => {});
+  useEffect(() => { loadAttempts(); /* eslint-disable-next-line */ }, [lesson.id]);
+
+  const lockedOut = attempts?.locked_out && !passed;
 
   const submit = async () => {
     if (!url.trim()) return toast.error("Paste a link to your recording (YouTube/Vimeo/Loom).");
@@ -169,14 +175,21 @@ function AssignmentPanel({ lesson, onDone }) {
     try {
       await api.post("/submissions/create", { lesson_id: lesson.id, video_url: url.trim() });
       toast.success("Submitted! We'll grade it and unlock the next lesson.");
-      setUrl(""); onDone && onDone();
+      setUrl(""); onDone && onDone(); loadAttempts();
     } catch (e) { toast.error(e?.response?.data?.detail || "Submission failed"); }
     finally { setBusy(false); }
   };
 
   return (
     <div data-testid={`assignment-${lesson.id}`} className="mt-3 rounded-2xl bg-[#F7F7F2] border border-[#E5E6DF] p-3 space-y-2">
-      <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-bold text-[#B25A45]"><ClipboardCheck className="h-3.5 w-3.5" /> Assignment · pass {threshold}% to continue</div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-bold text-[#B25A45]"><ClipboardCheck className="h-3.5 w-3.5" /> Assignment · pass {threshold}% to continue</div>
+        {attempts && attempts.max_attempts > 0 && !passed && (
+          <span data-testid={`assignment-attempts-${lesson.id}`} className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-[#6B7269] border border-[#E5E6DF]">
+            {attempts.remaining} of {attempts.max_attempts} left
+          </span>
+        )}
+      </div>
       {lesson.assignment_prompt && <p className="text-xs text-[#545E56] leading-snug">{lesson.assignment_prompt}</p>}
       {sub && (
         <div data-testid={`assignment-status-${lesson.id}`} className="text-xs rounded-xl bg-white border border-[#E5E6DF] p-2.5">
@@ -190,7 +203,12 @@ function AssignmentPanel({ lesson, onDone }) {
           )}
         </div>
       )}
-      {!passed && (
+      {!passed && lockedOut && (
+        <div data-testid={`assignment-lockedout-${lesson.id}`} className="rounded-xl bg-[#FBEDE9] border border-[#E7C4B9] p-2.5 text-xs text-[#8A4433]">
+          You've used all {attempts.max_attempts} attempts. Please contact your instructor to reset.
+        </div>
+      )}
+      {!passed && !lockedOut && (
         <div className="flex items-center gap-2">
           <input data-testid={`assignment-url-${lesson.id}`} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Link to your practice video" className="flex-1 rounded-xl border border-[#E5E6DF] bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#B25A45]" />
           <button onClick={submit} disabled={busy} data-testid={`assignment-submit-${lesson.id}`} className="pill pill-primary !py-2 !px-3 !text-xs shrink-0">{busy ? "…" : "Submit"}</button>

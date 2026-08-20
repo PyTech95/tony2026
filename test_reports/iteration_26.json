@@ -1,0 +1,53 @@
+{
+  "summary": "Deep edge-case validation of the 5 new iteration-26 features (leaderboard, gift cards, certificates CSV, assignment retry limits, notification center). Backend: 26 pytest cases in /app/backend/tests/test_iteration26.py — all passed (auth/role gating, gift-card double-redeem 400, invalid code 404, disabled-card 400, leaderboard privacy + staff exclusion + sorting, CSV headers/quoting/verify_url, max_attempts=1 enforcement + 0=unlimited + negative clamp, notification feed shape/sorting/unread reset). Frontend: verified student flows (bell + unread badge lifecycle, panel items, /leaderboard me-card + row, /profile gift-card redeem with invalid + double-redeem toasts and live store-credit update), admin flows (giftcards pane create + disable, export-certificates-csv real file download 'certificates.csv', lesson editor max-attempts field appears only with requires-submission, persists and round-trips), and ProgramDetail AssignmentPanel showing '1 of 1 left' then the lockout notice after submitting. No blocking bugs found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/leaderboard", "issue": "leaderboard_enabled kill-switch is read from app_settings but there is no admin endpoint/UI to set it, so the documented opt-out is unreachable."},
+      {"endpoint": "GET /api/leaderboard", "issue": "Recomputes 4 full-collection aggregations + full users scan (to_list(10000)) on every request with no cache/limit-by-index; will degrade as data grows."},
+      {"endpoint": "POST /api/gift-cards/redeem", "issue": "Read-then-write (find_one then update_one) instead of atomic find_one_and_update({code, status:'active'}). A 6-way parallel redeem probe showed only one 200 and a single credit today, but the check is not concurrency-safe by construction."},
+      {"endpoint": "GET /api/notifications", "issue": "unread is computed with lexicographic string comparison of ISO timestamps; if any source stores a naive/offset-less timestamp the count can be wrong. Parse to datetime instead."},
+      {"endpoint": "POST /api/admin/gift-cards/{code}/deactivate", "issue": "Accepts an already-redeemed card and flips status redeemed -> disabled, losing redemption audit state (no status guard)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin console (/admin)", "issues": ["Tab pill strip overflows the max-width container at 1920px — the 'Gift Cards' / later tabs are clipped off the right edge with no visible scroll affordance; reachable only via ?tab= URL or horizontal scroll."]},
+      {"screen": "Notification panel", "issues": ["Item titles are single-line truncated ('New episode: The breath is the prac…'); consider 2-line clamp."]},
+      {"screen": "/leaderboard", "issues": ["With a single ranked user the page is mostly empty whitespace; a short explainer of how points are earned would fill it."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration26.py",
+    "/app/backend/tests/race_giftcard_iteration26.py",
+    "/app/backend/tests/cleanup_iteration26.py",
+    "/app/test_reports/pytest/iter26.xml"
+  ],
+  "action_items": [
+    "Optional hardening: make gift-card redemption atomic (find_one_and_update with status filter) before real money is involved.",
+    "Either expose a leaderboard_enabled toggle in admin settings or drop the unreachable kill-switch branch.",
+    "Parse timestamps (not string-compare) when computing notifications unread count.",
+    "Guard deactivate against status='redeemed' cards.",
+    "Fix admin tab strip overflow so the Gift Cards tab is reachable by click on desktop."
+  ],
+  "critical_code_review_comments": [
+    "giftcards.redeem_gift_card: two-step read/update is a classic double-spend shape; use db.gift_cards.find_one_and_update({'code':c,'status':'active','balance':{'$gt':0}}, {...}) and credit only if it returns a doc.",
+    "leaderboard.leaderboard: no pagination/caching on 4 aggregations + users scan; consider a periodically-materialised leaderboard collection.",
+    "notifications.list_notifications: unread uses str(at) > str(seen_at); normalise to timezone-aware datetimes.",
+    "Admin.jsx is very large (1700+ lines) — GiftCardsPane/CoursesPane/LessonsEditor should be split into separate modules per the 700-line guideline."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration26.py (new)",
+    "/app/backend/tests/race_giftcard_iteration26.py (new)",
+    "/app/backend/tests/cleanup_iteration26.py (new)"
+  ],
+  "success_rate": {"backend": "100% (26/26)", "frontend": "100% (all 5 feature flows verified)"},
+  "seed_data_creation": "All test artifacts cleaned up: TEST_iter26 gift cards (6) deleted, TEST_iter26 announcement deleted, TEST_iter26 lesson+video deleted via admin API, test submissions removed, seeded TESTCERT26 certificate removed, and student@demo.com store_credit restored to its pre-test value of 50.00.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "/app/memory/test_credentials.md present and all 3 accounts (admin/student/instructor) authenticate successfully.",
+  "context_for_next_testing_agent": "Iteration 26 regression suite lives at /app/backend/tests/test_iteration26.py (pytest, external URL from frontend/.env, self-cleaning). It creates and deletes its own program lesson under the first program returned by GET /api/programs, so it is safe to re-run. Assignment lockout UI was verified using the admin (staff access) view of ProgramDetail because student@demo.com is not enrolled in any program; if enrollment seed data is added, re-verify as the student. All findings are hardening/design-level — no functional defects were reproduced.",
+  "rca_of_the_issue": "N/A — no failing behaviour reproduced. The only theoretical defect (gift-card double-credit) is a read-then-write race; a 6-thread concurrent redeem returned 1x200 + 5x400 with a single 10.00 credit, so it is not currently exploitable under the single-worker async server, but the code path is not atomic."
+}

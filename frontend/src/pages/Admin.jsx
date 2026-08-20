@@ -1067,7 +1067,7 @@ function LessonsEditor({ programId }) {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [programId]);
 
-  const openNew = () => { setBulk(null); setForm({ title: "", youtube_url: "", start: "0:00", end: "", is_free_preview: false, is_private: false, requires_submission: false, assignment_prompt: "", pass_threshold: 60 }); };
+  const openNew = () => { setBulk(null); setForm({ title: "", youtube_url: "", start: "0:00", end: "", is_free_preview: false, is_private: false, requires_submission: false, assignment_prompt: "", pass_threshold: 60, max_attempts: 0 }); };
   const openBulk = () => { setForm(null); setBulk({ youtube_url: "", text: "0:00 Intro & warm-up\n10:00 Standing series\n22:30 Floor series\n40:00 Final relaxation", free_preview_first: true, is_private: false }); };
   const openEdit = (l) => {
     setBulk(null);
@@ -1082,6 +1082,7 @@ function LessonsEditor({ programId }) {
       requires_submission: !!l.requires_submission,
       assignment_prompt: l.assignment_prompt || "",
       pass_threshold: l.pass_threshold ?? 60,
+      max_attempts: l.max_attempts ?? 0,
     });
   };
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -1094,7 +1095,7 @@ function LessonsEditor({ programId }) {
     const end = form.end ? mmssToSec(form.end) : null;
     if (end != null && end <= start) return toast.error("End time must be after start time.");
     setBusy(true);
-    const body = { title: form.title.trim(), youtube_url: form.youtube_url.trim(), start_seconds: start, end_seconds: end, is_free_preview: form.is_free_preview, is_private: form.is_private, requires_submission: !!form.requires_submission, assignment_prompt: form.requires_submission ? (form.assignment_prompt || "") : "", pass_threshold: Number(form.pass_threshold) || 60 };
+    const body = { title: form.title.trim(), youtube_url: form.youtube_url.trim(), start_seconds: start, end_seconds: end, is_free_preview: form.is_free_preview, is_private: form.is_private, requires_submission: !!form.requires_submission, assignment_prompt: form.requires_submission ? (form.assignment_prompt || "") : "", pass_threshold: Number(form.pass_threshold) || 60, max_attempts: Math.max(0, Number(form.max_attempts) || 0) };
     try {
       if (form.id) { await api.patch(`/admin/lessons/${form.id}`, body); toast.success("Lesson updated."); }
       else { await api.post(`/admin/programs/${programId}/lessons`, body); toast.success("Lesson added."); }
@@ -1227,6 +1228,9 @@ function LessonsEditor({ programId }) {
               </Field>
               <Field label="Pass mark (%)" hint="Minimum AI/instructor score to unlock the next lesson.">
                 <input data-testid="lesson-pass-threshold" type="number" min="0" max="100" className={lc} value={form.pass_threshold} onChange={(e) => set("pass_threshold", e.target.value)} />
+              </Field>
+              <Field label="Max attempts" hint="How many tries a student gets before lockout. 0 = unlimited.">
+                <input data-testid="lesson-max-attempts" type="number" min="0" max="20" className={lc} value={form.max_attempts} onChange={(e) => set("max_attempts", e.target.value)} />
               </Field>
             </>
           )}
@@ -1573,7 +1577,24 @@ function StudentsPane() {
 
   return (
     <div className="space-y-3" data-testid="students-pane">
-      <div className="eyebrow">Students ({data.total})</div>
+      <div className="flex items-center justify-between">
+        <div className="eyebrow">Students ({data.total})</div>
+        <button
+          data-testid="export-certificates-csv"
+          onClick={async () => {
+            try {
+              const res = await api.get("/admin/certificates/export.csv", { responseType: "blob" });
+              const href = URL.createObjectURL(new Blob([res.data], { type: "text/csv" }));
+              const a = document.createElement("a");
+              a.href = href; a.download = "certificates.csv"; a.click();
+              URL.revokeObjectURL(href);
+            } catch { toast.error("Export failed"); }
+          }}
+          className="pill pill-ghost !py-1.5 !px-3 !text-xs"
+        >
+          <Award className="h-3.5 w-3.5" /> Export certificates CSV
+        </button>
+      </div>
       {data.students.length === 0 ? (
         <p className="text-sm text-[#6B7269] py-4 text-center">No students yet.</p>
       ) : (
@@ -1616,10 +1637,83 @@ function StudentsPane() {
 }
 
 
+function GiftCardsPane() {
+  const [cards, setCards] = useState(null);
+  const [amount, setAmount] = useState(50);
+  const [currency, setCurrency] = useState("eur");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = () => api.get("/admin/gift-cards").then(({ data }) => setCards(data)).catch(() => setCards(false));
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    if (!amount || Number(amount) <= 0) return toast.error("Enter a positive amount.");
+    setBusy(true);
+    try {
+      const { data } = await api.post("/admin/gift-cards", { amount: Number(amount), currency, note: note || null });
+      toast.success(`Created ${data.code}`);
+      setNote("");
+      load();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Could not create"); }
+    finally { setBusy(false); }
+  };
+
+  const deactivate = async (code) => {
+    try { await api.post(`/admin/gift-cards/${code}/deactivate`); load(); }
+    catch { toast.error("Failed"); }
+  };
+
+  const sym = (c) => (c === "usd" ? "$" : "€");
+  const ic = "w-full rounded-xl border border-[#E5E6DF] bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#B25A45]";
+
+  return (
+    <div className="space-y-4" data-testid="giftcards-pane">
+      <div className="rounded-2xl bg-white border border-[#E5E6DF] p-4 space-y-3">
+        <div className="eyebrow">Issue a gift card</div>
+        <div className="flex gap-2">
+          <input data-testid="giftcard-amount" type="number" min="1" className={ic} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount" />
+          <select data-testid="giftcard-currency" className={ic + " max-w-[110px]"} value={currency} onChange={(e) => setCurrency(e.target.value)}>
+            <option value="eur">EUR €</option>
+            <option value="usd">USD $</option>
+          </select>
+        </div>
+        <input data-testid="giftcard-note" className={ic} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional) — e.g. Holiday promo" />
+        <button onClick={create} disabled={busy} data-testid="giftcard-create" className="pill pill-primary w-full">{busy ? "Creating…" : "Create gift card"}</button>
+      </div>
+
+      <div className="eyebrow">Issued cards {cards?.length ? `(${cards.length})` : ""}</div>
+      {cards === null ? <Spinner /> : cards === false ? (
+        <p className="text-sm text-[#6B7269]">Could not load gift cards.</p>
+      ) : cards.length === 0 ? (
+        <p className="text-sm text-[#6B7269] rounded-2xl bg-[#F2F2EC] p-5">No gift cards yet.</p>
+      ) : (
+        <ul className="space-y-2" data-testid="giftcards-list">
+          {cards.map((c) => (
+            <li key={c.id} className="rounded-2xl bg-white border border-[#E5E6DF] p-3 flex items-center justify-between gap-3" data-testid={`giftcard-row-${c.code}`}>
+              <div className="min-w-0">
+                <div className="text-[14px] font-semibold tracking-wide">{c.code}</div>
+                <div className="text-xs text-[#6B7269]">{sym(c.currency)}{c.amount} · balance {sym(c.currency)}{c.balance}{c.note ? ` · ${c.note}` : ""}</div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] uppercase tracking-widest font-bold rounded-full px-2 py-1" style={{ background: c.status === "active" ? "#EEF1EC" : "#F2F2EC", color: c.status === "active" ? "#839682" : "#6B7269" }}>{c.status}</span>
+                {c.status === "active" && (
+                  <button onClick={() => deactivate(c.code)} data-testid={`giftcard-deactivate-${c.code}`} className="text-xs text-[#B25A45] hover:underline">Disable</button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+
 export default function Admin() {
   const { user, ready } = useAuth();
   const [params, setParams] = useSearchParams();
-  const validTabs = ["stats", "courses", "bundles", "students", "classes", "apps", "broadcast", "settings", "import"];
+  const validTabs = ["stats", "courses", "bundles", "students", "classes", "apps", "broadcast", "giftcards", "settings", "import"];
   const initialTab = validTabs.includes(params.get("tab")) ? params.get("tab") : "stats";
   const [tab, setTab] = useState(initialTab);
   const selectTab = (t) => { setTab(t); setParams(t === "stats" ? {} : { tab: t }, { replace: true }); };
@@ -1638,6 +1732,7 @@ export default function Admin() {
           <Tab active={tab === "classes"} onClick={() => selectTab("classes")} tid="admin-tab-classes">Classes</Tab>
           <Tab active={tab === "apps"} onClick={() => selectTab("apps")} tid="admin-tab-apps">Applications</Tab>
           <Tab active={tab === "broadcast"} onClick={() => selectTab("broadcast")} tid="admin-tab-broadcast">Broadcast</Tab>
+          <Tab active={tab === "giftcards"} onClick={() => selectTab("giftcards")} tid="admin-tab-giftcards">Gift Cards</Tab>
           <Tab active={tab === "settings"} onClick={() => selectTab("settings")} tid="admin-tab-settings">Settings</Tab>
           <Tab active={tab === "import"} onClick={() => selectTab("import")} tid="admin-tab-import">Import</Tab>
         </div>
@@ -1650,6 +1745,7 @@ export default function Admin() {
           {tab === "classes" && <ClassesPane />}
           {tab === "apps" && <ApplicationsPane />}
           {tab === "broadcast" && <BroadcastPane />}
+          {tab === "giftcards" && <GiftCardsPane />}
           {tab === "settings" && <SettingsPane />}
           {tab === "import" && <ImportPane />}
         </div>

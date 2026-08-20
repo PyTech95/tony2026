@@ -128,6 +128,7 @@ class ProgramLessonUpdate(BaseModel):
     assignment_prompt: Optional[str] = None
     requires_submission: Optional[bool] = None
     pass_threshold: Optional[int] = None  # 0-100
+    max_attempts: Optional[int] = None  # 0 = unlimited
 
 class AssignmentSubmissionCreate(BaseModel):
     lesson_id: str
@@ -172,6 +173,7 @@ class LessonUpsert(BaseModel):
     requires_submission: Optional[bool] = None
     assignment_prompt: Optional[str] = None
     pass_threshold: Optional[int] = None
+    max_attempts: Optional[int] = None
 
 class LessonPatch(BaseModel):
     title: Optional[str] = None
@@ -187,6 +189,7 @@ class LessonPatch(BaseModel):
     requires_submission: Optional[bool] = None
     assignment_prompt: Optional[str] = None
     pass_threshold: Optional[int] = None
+    max_attempts: Optional[int] = None
 
 class BundleCreate(BaseModel):
     title: str

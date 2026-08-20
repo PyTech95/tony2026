@@ -1,4 +1,5 @@
 """Programs, videos, lessons, progress, favorites, shop, memberships, announcements."""
+import os
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
@@ -515,6 +516,32 @@ async def get_certificate(code: str):
     return cert
 
 
+@api.get("/admin/certificates/export.csv")
+async def export_certificates_csv(request: Request):
+    """CSV of every issued certificate for reporting. Admin-only."""
+    import io
+    import csv
+    from fastapi.responses import Response
+    await require_role(request, ["admin", "support"])
+    certs = await db.certificates.find({}, {"_id": 0}).sort("issued_at", -1).to_list(5000)
+    emails = {u["id"]: u.get("email", "") for u in await db.users.find(
+        {"id": {"$in": [c.get("user_id") for c in certs]}}, {"_id": 0, "id": 1, "email": 1}).to_list(5000)}
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["code", "student_name", "student_email", "program_title", "lessons_count", "issued_at", "verify_url"])
+    frontend_url = os.environ.get("FRONTEND_URL", "")
+    for c in certs:
+        writer.writerow([
+            c.get("code", ""), c.get("user_name", ""), emails.get(c.get("user_id"), ""),
+            c.get("program_title", ""), c.get("lessons_count", ""), c.get("issued_at", ""),
+            f"{frontend_url}/certificate/{c.get('code','')}",
+        ])
+    return Response(
+        content=buf.getvalue(), media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="certificates.csv"'},
+    )
+
+
 # ---------- Course lesson editor (admin/instructor) ----------
 # Each lesson is backed by a `videos` row. A single long YouTube video can be
 # sliced into many lessons by giving each a different start/end timestamp.
@@ -580,6 +607,7 @@ async def admin_add_lesson(program_id: str, payload: LessonUpsert, request: Requ
         "requires_submission": bool(payload.requires_submission) if payload.requires_submission is not None else False,
         "assignment_prompt": payload.assignment_prompt or None,
         "pass_threshold": int(payload.pass_threshold) if payload.pass_threshold is not None else 60,
+        "max_attempts": int(payload.max_attempts) if payload.max_attempts is not None else 0,
     }
     await db.program_lessons.insert_one(lesson_doc)
     lesson_doc.pop("_id", None)
@@ -606,6 +634,8 @@ async def admin_update_lesson(lesson_id: str, payload: LessonPatch, request: Req
         lesson_updates["assignment_prompt"] = payload.assignment_prompt or None
     if payload.pass_threshold is not None:
         lesson_updates["pass_threshold"] = int(payload.pass_threshold)
+    if payload.max_attempts is not None:
+        lesson_updates["max_attempts"] = max(0, int(payload.max_attempts))
     if lesson_updates:
         await db.program_lessons.update_one({"id": lesson_id}, {"$set": lesson_updates})
 

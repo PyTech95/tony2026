@@ -123,6 +123,16 @@ async def create_submission(payload: AssignmentSubmissionCreate, user: dict = De
     lesson = await db.program_lessons.find_one({"id": payload.lesson_id})
     if not lesson:
         raise HTTPException(404, "Lesson not found")
+    # Enforce configurable retry limit (0 = unlimited). Passing attempts don't count against you.
+    max_attempts = int(lesson.get("max_attempts") or 0)
+    if max_attempts > 0:
+        threshold = int(lesson.get("pass_threshold") or 60)
+        prior = await db.assignment_submissions.find(
+            {"user_id": user["id"], "lesson_id": payload.lesson_id}, {"_id": 0, "score": 1},
+        ).to_list(1000)
+        already_passed = any((s.get("score") or 0) >= threshold for s in prior)
+        if not already_passed and len(prior) >= max_attempts:
+            raise HTTPException(400, f"You've used all {max_attempts} attempts for this lesson. Please contact your instructor.")
     video = await db.videos.find_one({"id": lesson["video_id"]}, {"_id": 0})
     posture_name = (video or {}).get("title", "the assigned posture")
     rubric = (lesson.get("assignment_prompt") or "").strip()
@@ -174,6 +184,27 @@ async def best_for_lesson(lesson_id: str, user: dict = Depends(get_current_user)
         {"_id": 0},
     ).sort("score", -1).limit(1).to_list(1)
     return subs[0] if subs else None
+
+
+@api.get("/submissions/attempts/{lesson_id}")
+async def attempts_for_lesson(lesson_id: str, user: dict = Depends(get_current_user)):
+    """How many attempts the user has used vs. the lesson's configurable limit."""
+    lesson = await db.program_lessons.find_one({"id": lesson_id}, {"_id": 0})
+    if not lesson:
+        raise HTTPException(404, "Lesson not found")
+    max_attempts = int(lesson.get("max_attempts") or 0)
+    threshold = int(lesson.get("pass_threshold") or 60)
+    prior = await db.assignment_submissions.find(
+        {"user_id": user["id"], "lesson_id": lesson_id}, {"_id": 0, "score": 1},
+    ).to_list(1000)
+    used = len(prior)
+    passed = any((s.get("score") or 0) >= threshold for s in prior)
+    remaining = None if max_attempts == 0 else max(0, max_attempts - used)
+    return {
+        "lesson_id": lesson_id, "max_attempts": max_attempts, "used": used,
+        "remaining": remaining, "passed": passed,
+        "locked_out": bool(max_attempts and not passed and used >= max_attempts),
+    }
 
 
 class ProgramReport(BaseModel):

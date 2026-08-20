@@ -28,6 +28,7 @@ import MagicLink from "@/pages/MagicLink";
 import Cart from "@/pages/Cart";
 import WorkshopDetail from "@/pages/WorkshopDetail";
 import Streak from "@/pages/Streak";
+import Leaderboard from "@/pages/Leaderboard";
 import Passes from "@/pages/Passes";
 import Wishlist from "@/pages/Wishlist";
 import { CheckoutSuccess, CheckoutCancel } from "@/pages/Checkout";
@@ -84,6 +85,7 @@ export default function App() {
             <Route path="/broadcasts/:id" element={<Broadcasts />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/streak" element={<RequireAuth><Streak /></RequireAuth>} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/passes" element={<Passes />} />
             <Route path="/wishlist" element={<RequireAuth><Wishlist /></RequireAuth>} />
             <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />

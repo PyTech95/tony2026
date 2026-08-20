@@ -3,6 +3,7 @@ import { NavLink, Link, useLocation, Outlet } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Home, Calendar, GraduationCap, Play, User, Shield, LayoutDashboard, Mic } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import NotificationBell from "@/components/NotificationBell";
 
 const MEMBER_ITEMS = [
   { to: "/home", label: "Home", icon: Home, tid: "nav-home" },
@@ -73,6 +74,11 @@ export default function AppShell() {
           transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
           className={hideNav ? "" : "safe-bottom"}
         >
+          {user && !hideNav && (
+            <div className="fixed right-4 top-3 z-50" style={{ top: isStaff ? "3rem" : undefined }}>
+              <NotificationBell />
+            </div>
+          )}
           <Outlet />
         </motion.main>
       </AnimatePresence>

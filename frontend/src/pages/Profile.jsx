@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
-import { LogOut, User as UserIcon, Sparkles, ShoppingBag, GraduationCap, Gift, Shield, Flame, MountainSnow, Ticket, Heart } from "lucide-react";
+import { LogOut, User as UserIcon, Sparkles, ShoppingBag, GraduationCap, Gift, Shield, Flame, MountainSnow, Ticket, Heart, Trophy } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { usePaymentProviders } from "@/lib/providers";
@@ -21,22 +21,39 @@ export default function Profile() {
   const [sub, setSub] = useState(null);
   const [retreats, setRetreats] = useState([]);
   const [payBusy, setPayBusy] = useState(null);
+  const [credit, setCredit] = useState(0);
+  const [gcCode, setGcCode] = useState("");
+  const [gcBusy, setGcBusy] = useState(false);
   const { paypal: paypalAvailable } = usePaymentProviders();
 
   useEffect(() => {
     (async () => {
       try {
-        const [b, s, r] = await Promise.all([
+        const [b, s, r, c] = await Promise.all([
           api.get("/bookings/mine"),
           api.get("/subscriptions/mine").catch(() => ({ data: null })),
           api.get("/retreats/mine").catch(() => ({ data: [] })),
+          api.get("/me/store-credit").catch(() => ({ data: { store_credit: 0 } })),
         ]);
         setBookings(b.data);
         setSub(s.data);
         setRetreats(r.data || []);
+        setCredit(c.data?.store_credit || 0);
       } catch { setBookings([]); }
     })();
   }, []);
+
+  const redeemGift = async () => {
+    if (!gcCode.trim()) return toast.error("Enter a gift card code.");
+    setGcBusy(true);
+    try {
+      const { data } = await api.post("/gift-cards/redeem", { code: gcCode.trim() });
+      setCredit(data.store_credit);
+      setGcCode("");
+      toast.success(`Redeemed €${data.redeemed} · added to your store credit`);
+    } catch (e) { toast.error(e?.response?.data?.detail || "Could not redeem this code"); }
+    finally { setGcBusy(false); }
+  };
 
   const payBalance = async (r) => {
     setPayBusy(r.id);
@@ -129,6 +146,30 @@ export default function Profile() {
         {/* Reminders */}
         <PushToggle />
 
+        {/* Gift card / store credit */}
+        <section data-testid="gift-card-section" className="rounded-3xl bg-white border border-[#E5E6DF] p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Gift className="h-4 w-4 text-[#B25A45]" />
+              <span className="text-sm font-semibold text-[#1C221F]">Gift cards & credit</span>
+            </div>
+            <span data-testid="store-credit-balance" className="text-sm font-bold text-[#B25A45]">€{credit.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              data-testid="gift-card-input"
+              value={gcCode}
+              onChange={(e) => setGcCode(e.target.value.toUpperCase())}
+              placeholder="GIFT-XXXXXXXX"
+              className="flex-1 rounded-xl border border-[#E5E6DF] bg-[#FAFAF7] px-3 py-2 text-sm tracking-wide focus:outline-none focus:border-[#B25A45]"
+            />
+            <button onClick={redeemGift} disabled={gcBusy} data-testid="gift-card-redeem" className="pill pill-primary !py-2 !px-4 !text-xs shrink-0">
+              {gcBusy ? "…" : "Redeem"}
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-[#9AA096]">Redeem a gift card to add store credit to your account.</p>
+        </section>
+
         {/* Retreats */}
         {retreats.length > 0 && (
           <section data-testid="profile-retreats">
@@ -169,6 +210,10 @@ export default function Profile() {
           <Link to="/streak" data-testid="profile-link-streak" className="rounded-2xl bg-white border border-[#E5E6DF] p-4 hover:border-[#B25A45] transition">
             <Flame className="h-5 w-5 text-[#B25A45] mb-2" />
             <div className="text-sm font-semibold">Practice streak</div>
+          </Link>
+          <Link to="/leaderboard" data-testid="profile-link-leaderboard" className="rounded-2xl bg-white border border-[#E5E6DF] p-4 hover:border-[#B25A45] transition">
+            <Trophy className="h-5 w-5 text-[#B25A45] mb-2" />
+            <div className="text-sm font-semibold">Leaderboard</div>
           </Link>
           <Link to="/wishlist" data-testid="profile-link-wishlist" className="rounded-2xl bg-white border border-[#E5E6DF] p-4 hover:border-[#B25A45] transition">
             <Heart className="h-5 w-5 text-[#B25A45] mb-2" />
