@@ -1,0 +1,29 @@
+{
+  "summary": "Targeted frontend verification of the segmented-YouTube-playback bug fix in VideoPlayer.jsx. Real YouTube playback is BLOCKED in this sandbox (both the real lesson video EeZrRo1PNmU and a control public video aqz-KE-bpKQ render 'Video unavailable / This content isn't available' inside the iframe, while youtube.com/oembed returns 200 for both from the container -> headless Chromium/env restriction, not an app bug). To still verify functionally, I stubbed window.YT with an instrumented fake IFrame player (same API surface: getCurrentTime/pauseVideo/seekTo/destroy + onStateChange PLAYING) plus a simulated playback clock, and exercised the app's real boundary-enforcement code in VideoPlayer.jsx against temporary segmented test videos (start 0/end 30 and start 60/end 90). ALL segment behaviours PASSED: player is built with correct start/end playerVars, playback is paused and clamped to end_seconds within one 1s poll of crossing the boundary, stays stopped afterwards, progress is persisted with completed=true & seconds=end, the 'Completed' badge appears, start_seconds>0 clips begin at start, and resume is correctly clamped inside [start,end].",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL (accuracy, not correctness): the boundary poll runs every 1000ms with threshold end-0.4, so a viewer can see up to ~1s past end_seconds before the pause fires (observed: sample at t=30.0 still playing, paused on the next poll and seeked back to 30). If a tighter cut is desired, poll at 250ms (progress-save throttling already prevents extra POSTs).",
+    "MANUAL CONFIRMATION NEEDED in a real browser: verify the 10-minute clip (bcde4f96... end_seconds=600) actually stops at 10:00, because live YouTube playback could not run in this sandbox. Code path is verified; only the real YouTube media layer is unverified.",
+    "Note for product: the real lesson video EeZrRo1PNmU shows 'Video unavailable' inside this preview environment. oembed says the video is public/embeddable, so this is almost certainly the sandbox; still worth a quick check on a real device."
+  ],
+  "critical_code_review_comments": [
+    "VideoPlayer.jsx: the enforcement interval is cleared on PAUSED/ENDED and on unmount - no leak; guard is wrapped in try/catch so a destroyed player cannot throw. Looks correct.",
+    "saveProgress(end, true) bypasses the 4s throttle for completed=true, so the completion write is never dropped - good.",
+    "Minor: on the ENDED branch saveProgress(end || currentTime, true) is fine, but for a segmented clip ENDED should not normally be reachable because the poll pauses first; no action needed.",
+    "The scrub bar still exposes the full 58:44 video, so a user can manually seek past end_seconds; the poll will pull them back to end and re-mark complete. Acceptable given YouTube UI limits, but if strict segment lock is desired the native controls would have to be hidden (controls: 0) with custom UI."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "not tested (frontend-only request)", "frontend": "100% of segment-playback assertions passed (8/8) via instrumented player; live YouTube media playback unverifiable in sandbox" },
+  "seed_data_creation": "Temporarily created two segmented free videos (TEST_SegA start0/end30, TEST_SegB start60/end90) via POST /api/admin/videos and their watch_progress rows; ALL removed afterwards from MongoDB. Also cleaned the throwaway progress row created for bcde4f96-....",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "student@demo.com / Student2026!, tony@tonyyoga.com / TonyYoga2026!",
+  "context_for_next_testing_agent": "YouTube iframes cannot actually PLAY in this preview environment (any video id renders 'Video unavailable'; postMessage playVideo leaves playerState=-1 and no currentTime updates). To test YouTube-dependent behaviour, stub window.YT via page.add_init_script BEFORE navigation with a fake Player exposing getCurrentTime/pauseVideo/seekTo/playVideo/destroy and firing cfg.events.onStateChange({data:1}); loadYT() in VideoPlayer.jsx short-circuits when window.YT.Player exists, so the real API is never fetched. Read window.__fake.cfg.playerVars to assert start/end and drive window.__fake._t to cross the boundary. Login shortcut: POST /api/auth/login then localStorage.setItem('ty_auth_token', token).",
+  "rca_of_the_issue": "Original bug: reliance on the YouTube `end` playerVar, which YouTube ignores/loses (e.g. after buffering or a user seek), so the full 58:44 video kept playing. The fix enforces the boundary in JS: while PLAYING, a 1s interval reads getCurrentTime() and, at >= end-0.4, calls pauseVideo() + seekTo(end) + saveProgress(end, true) and clears the interval. Verified with an instrumented player: playback paused at the boundary, playhead clamped to end, never advanced afterwards, and POST /api/progress stored {seconds:30, completed:true}."
+}

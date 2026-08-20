@@ -84,13 +84,22 @@ export default function VideoPlayer() {
             const P = window.YT.PlayerState;
             clearInterval(timerRef.current);
             if (e.data === P.PLAYING) {
+              // Poll every 1s to (a) save progress and (b) hard-enforce the segment
+              // end boundary — YouTube's `end` playerVar is unreliable and often
+              // lets the full video keep playing past the lesson clip.
               timerRef.current = setInterval(() => {
                 try {
                   const t = playerRef.current.getCurrentTime();
-                  const finished = end ? t >= end - 1.5 : false;
-                  saveProgress(t, finished);
+                  if (end && t >= end - 0.25) {
+                    try { playerRef.current.pauseVideo(); } catch { /* noop */ }
+                    try { playerRef.current.seekTo(end, true); } catch { /* noop */ }
+                    clearInterval(timerRef.current);
+                    saveProgress(end, true);
+                    return;
+                  }
+                  saveProgress(t, false);
                 } catch { /* noop */ }
-              }, 5000);
+              }, 400);
             } else if (e.data === P.PAUSED) {
               try { saveProgress(playerRef.current.getCurrentTime(), false); } catch { /* noop */ }
             } else if (e.data === P.ENDED) {
@@ -116,6 +125,8 @@ export default function VideoPlayer() {
 
   const playable = v.is_unlocked && v.video_url;
   const youtube = playable && isYouTube(v.video_url);
+  const segStart = v.start_seconds || 0;
+  const segEnd = v.end_seconds || undefined;
 
   return (
     <div data-testid="video-player-page" className="pb-8">
@@ -137,9 +148,22 @@ export default function VideoPlayer() {
                 className="h-full w-full"
                 poster={v.cover_image}
                 src={v.video_url}
-                onLoadedMetadata={() => { if (resume > 2 && videoRef.current) videoRef.current.currentTime = resume; }}
-                onTimeUpdate={() => { const el = videoRef.current; if (el) saveProgress(el.currentTime, false); }}
-                onEnded={() => { const el = videoRef.current; if (el) saveProgress(el.duration || el.currentTime, true); }}
+                onLoadedMetadata={() => {
+                  const el = videoRef.current; if (!el) return;
+                  const begin = (resume && resume > segStart + 2 && (!segEnd || resume < segEnd - 2)) ? resume : segStart;
+                  if (begin > 0) el.currentTime = begin;
+                }}
+                onTimeUpdate={() => {
+                  const el = videoRef.current; if (!el) return;
+                  if (segEnd && el.currentTime >= segEnd - 0.3) {
+                    el.pause();
+                    try { el.currentTime = segEnd; } catch { /* noop */ }
+                    saveProgress(segEnd, true);
+                    return;
+                  }
+                  saveProgress(el.currentTime, false);
+                }}
+                onEnded={() => { const el = videoRef.current; if (el) saveProgress(segEnd || el.duration || el.currentTime, true); }}
               />
             </div>
           )
