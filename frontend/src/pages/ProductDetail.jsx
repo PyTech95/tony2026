@@ -1,0 +1,115 @@
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { ExternalLink, ShoppingBag } from "lucide-react";
+import { api } from "@/lib/api";
+import { cart } from "@/lib/cart";
+import PageHeader from "@/components/PageHeader";
+import Spinner from "@/components/Spinner";
+import CartBadge from "@/components/CartBadge";
+import HeartButton from "@/components/HeartButton";
+
+export default function ProductDetail() {
+  const { id } = useParams();
+  const nav = useNavigate();
+  const [p, setP] = useState(null);
+  const [size, setSize] = useState(null);
+  const [qty, setQty] = useState(1);
+
+  useEffect(() => {
+    api.get(`/products/${id}`).then(({ data }) => {
+      setP(data);
+      if (data.variants?.length) setSize(data.variants[0].size);
+    }).catch(() => setP(false));
+  }, [id]);
+
+  if (p === null) return <><PageHeader back /><Spinner /></>;
+  if (p === false) return <><PageHeader back title="Not found" /></>;
+
+  const stock = Math.max(0, p.stock_qty || 0);
+  const outOfStock = stock === 0;
+
+  const addToCart = () => {
+    if (outOfStock) return;
+    cart.add(p, size, qty);
+    toast.success(`Added ${p.title}${size ? ` (${size})` : ""} to cart`);
+  };
+
+  const buyNow = () => {
+    if (outOfStock) return;
+    cart.add(p, size, qty);
+    nav("/cart");
+  };
+
+  return (
+    <div data-testid="product-detail" className="pb-6">
+      <PageHeader eyebrow={p.category} title={p.title} back testId="product-header" action={<div className="flex items-center gap-2"><HeartButton targetType="product" targetId={p.id} /><CartBadge /></div>} />
+
+      <div className="mx-auto max-w-2xl px-5 space-y-6">
+        {p.images?.[0] && (
+          <div className="rounded-3xl overflow-hidden aspect-[4/5] bg-[#F2F2EC]">
+            <img src={p.images[0]} alt="" className="h-full w-full object-cover" />
+          </div>
+        )}
+
+        <div className="flex items-baseline justify-between">
+          <div className="serif text-4xl">${p.price}</div>
+          <div className={`text-xs font-semibold uppercase tracking-widest ${outOfStock ? "text-[#B25A45]" : "text-[#839682]"}`} data-testid="product-stock">
+            {outOfStock ? "Sold out" : `${stock} in stock`}
+          </div>
+        </div>
+        <p className="text-[15px] text-[#545E56] leading-relaxed">{p.description}</p>
+
+        {p.variants?.length > 0 && (
+          <div>
+            <div className="eyebrow mb-2">Size</div>
+            <div className="flex gap-2 flex-wrap" data-testid="product-sizes">
+              {p.variants.map((v) => (
+                <button
+                  key={v.size}
+                  onClick={() => setSize(v.size)}
+                  data-testid={`product-size-${v.size}`}
+                  className={`pill !py-2 !px-4 !text-[13px] ${size === v.size ? "pill-primary" : "pill-ghost"}`}
+                >
+                  {v.size}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!outOfStock && (
+          <div className="flex items-center gap-3">
+            <div className="eyebrow">Quantity</div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setQty(Math.max(1, qty - 1))} data-testid="product-qty-dec" className="h-8 w-8 rounded-full border border-[#E5E6DF] hover:border-[#B25A45]">−</button>
+              <span className="w-8 text-center font-semibold" data-testid="product-qty">{qty}</span>
+              <button onClick={() => setQty(Math.min(stock, qty + 1))} data-testid="product-qty-inc" className="h-8 w-8 rounded-full border border-[#E5E6DF] hover:border-[#B25A45]">+</button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={addToCart} disabled={outOfStock} data-testid="product-add" className="pill pill-ghost">
+            <ShoppingBag className="h-4 w-4" /> Add to cart
+          </button>
+          <button onClick={buyNow} disabled={outOfStock} data-testid="product-buy" className="pill pill-primary">
+            Buy now
+          </button>
+        </div>
+
+        {p.external_amazon_link && (
+          <a
+            href={p.external_amazon_link}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="product-amazon"
+            className="pill pill-ghost w-full"
+          >
+            Buy on Amazon <ExternalLink className="h-4 w-4" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}

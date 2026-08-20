@@ -1,0 +1,172 @@
+"""SMTP email service for Tony Yoga (Gmail SMTP via app password)."""
+import os
+import asyncio
+import smtplib
+import logging
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
+from typing import Optional
+
+logger = logging.getLogger("tony-yoga.email")
+
+
+async def _get_smtp_config() -> dict:
+    """Resolve SMTP config from admin settings (DB) with .env fallback."""
+    from routers.settings import get_setting
+    user = (await get_setting("smtp_user")) or ""
+    try:
+        port = int(await get_setting("smtp_port") or 587)
+    except (TypeError, ValueError):
+        port = 587
+    return {
+        "host": (await get_setting("smtp_host")) or "smtp.gmail.com",
+        "port": port,
+        "user": user,
+        "password": ((await get_setting("smtp_password")) or "").replace(" ", ""),
+        "sender_email": (await get_setting("sender_email")) or user,
+        "sender_name": (await get_setting("sender_name")) or "Tony Yoga",
+        "enabled": bool(await get_setting("email_enabled")),
+    }
+
+
+def _send_sync(to: str, subject: str, html: str, text: Optional[str], cfg: dict) -> bool:
+    if not cfg.get("user") or not cfg.get("password"):
+        logger.warning(f"[EMAIL skipped — no SMTP creds] to={to} subject={subject}")
+        return False
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = formataddr((cfg["sender_name"], cfg["sender_email"]))
+    msg["To"] = to
+    if text:
+        msg.attach(MIMEText(text, "plain"))
+    msg.attach(MIMEText(html, "html"))
+    try:
+        with smtplib.SMTP(cfg["host"], cfg["port"], timeout=15) as server:
+            server.starttls()
+            server.login(cfg["user"], cfg["password"])
+            server.send_message(msg)
+        logger.info(f"[EMAIL sent] to={to} subject={subject!r}")
+        return True
+    except Exception as e:
+        logger.exception(f"[EMAIL FAILED] to={to} subject={subject!r}: {e}")
+        return False
+
+
+async def send_email(to: str, subject: str, html: str, text: Optional[str] = None) -> bool:
+    cfg = await _get_smtp_config()
+    if not cfg["enabled"]:
+        logger.info(f"[EMAIL skipped — disabled in admin settings] to={to} subject={subject!r}")
+        return False
+    return await asyncio.to_thread(_send_sync, to, subject, html, text, cfg)
+
+
+async def send_test_email(to: str) -> bool:
+    """Send a verification email, bypassing the enabled toggle (used by admin 'Send test')."""
+    cfg = await _get_smtp_config()
+    html = _wrap(
+        "SMTP is working.",
+        "This is a test email from your Tony Yoga admin console. If you're reading this, "
+        "booking confirmations and reminders will reach your students.",
+    )
+    return await asyncio.to_thread(_send_sync, to, "Tony Yoga — SMTP test", html,
+                                   "Your Tony Yoga SMTP settings are working.", cfg)
+
+
+def _wrap(title: str, body_html: str, cta_label: Optional[str] = None, cta_url: Optional[str] = None) -> str:
+    cta = ""
+    if cta_label and cta_url:
+        cta = f"""
+        <tr><td align="center" style="padding: 24px 0;">
+          <a href="{cta_url}" style="display:inline-block;background:#B25A45;color:#FAFAF7;text-decoration:none;padding:14px 28px;border-radius:999px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;letter-spacing:0.02em;">{cta_label}</a>
+        </td></tr>
+        """
+    return f"""
+    <!doctype html>
+    <html><body style="margin:0;padding:0;background:#FAFAF7;font-family:Helvetica,Arial,sans-serif;color:#1C221F;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#FAFAF7;padding:48px 16px;">
+        <tr><td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="background:#FFFFFF;border:1px solid #E5E6DF;border-radius:16px;padding:40px;">
+            <tr><td style="font-family:Georgia,'Cormorant Garamond',serif;font-size:14px;letter-spacing:0.2em;text-transform:uppercase;color:#839682;">Tony Yoga</td></tr>
+            <tr><td style="padding-top:8px;font-family:Georgia,'Cormorant Garamond',serif;font-size:32px;line-height:1.15;color:#1C221F;letter-spacing:-0.01em;">{title}</td></tr>
+            <tr><td style="padding-top:20px;font-size:15px;line-height:1.7;color:#545E56;">{body_html}</td></tr>
+            {cta}
+            <tr><td style="padding-top:24px;border-top:1px solid #E5E6DF;font-size:12px;color:#839682;">Slow down. Breathe in. Begin again.<br/>— Tony</td></tr>
+          </table>
+        </td></tr>
+      </table>
+    </body></html>
+    """
+
+
+# ---------- Templated helpers ----------
+async def send_magic_link(to: str, magic_url: str, link_type: str = "login") -> bool:
+    titles = {
+        "legacy_reactivation": "Welcome back to the practice.",
+        "instructor_onboarding": "Welcome to Tony Yoga.",
+        "login": "Your sign-in link.",
+    }
+    bodies = {
+        "legacy_reactivation": "We've built a new home for the practice — live classes, on-demand programs, and a quieter place to come back to. Click below to claim your account.",
+        "instructor_onboarding": "Your application has been approved. Click below to set up your teacher profile and start scheduling classes.",
+        "login": "Click the button below to sign in. This link expires in 24 hours.",
+    }
+    html = _wrap(titles.get(link_type, "Sign in"), bodies.get(link_type, ""), "Open Tony Yoga", magic_url)
+    return await send_email(to, titles.get(link_type, "Your sign-in link"), html, f"Open this link to continue: {magic_url}")
+
+
+async def send_password_reset(to: str, reset_url: str) -> bool:
+    html = _wrap(
+        "Reset your password.",
+        "Someone (hopefully you) asked to reset your Tony Yoga password. This link expires in one hour. If you didn't request this, you can safely ignore.",
+        "Reset password", reset_url,
+    )
+    return await send_email(to, "Reset your Tony Yoga password", html, f"Reset link: {reset_url}")
+
+
+async def send_referral_invite(to: str, inviter_name: str, share_url: str, personal_note: Optional[str] = None) -> bool:
+    note_html = f'<p style="margin:16px 0;padding:16px;background:#F2F2EC;border-radius:12px;font-style:italic;color:#1C221F;">"{personal_note}"</p>' if personal_note else ""
+    body = (
+        f"<strong>{inviter_name}</strong> thinks you'd enjoy practicing with Tony. "
+        "Tony has been teaching for 40+ years — live online and in studio, plus on-demand programs you can return to whenever. "
+        "Your first class is free, and if you become a member, your friend gets a free month too."
+        f"{note_html}"
+    )
+    html = _wrap(f"{inviter_name} invited you to Tony Yoga.", body, "Try a free class", share_url)
+    return await send_email(to, f"{inviter_name} invited you to Tony Yoga", html, f"Join: {share_url}")
+
+
+async def send_booking_confirmation(to: str, class_title: str, when: str, location: str, join_url: Optional[str] = None) -> bool:
+    body = (
+        f"You're booked into <strong>{class_title}</strong><br/>"
+        f"<strong>When:</strong> {when}<br/>"
+        f"<strong>Where:</strong> {location}<br/><br/>"
+        "Arrive a few minutes early. Bring a mat and water."
+    )
+    html = _wrap("You're booked.", body, "View booking" if join_url else None, join_url)
+    return await send_email(to, f"Booked: {class_title}", html, f"You're booked for {class_title} at {when}.")
+
+
+async def send_waitlist_promoted(to: str, class_title: str, when: str, location: str, join_url: Optional[str] = None) -> bool:
+    body = (
+        f"Good news — a spot opened up and you're now <strong>confirmed</strong> for {class_title}.<br/><br/>"
+        f"<strong>When:</strong> {when}<br/>"
+        f"<strong>Where:</strong> {location}<br/><br/>"
+        "See you on the mat. Arrive a few minutes early with a mat and water."
+    )
+    html = _wrap("You're off the waitlist.", body, "View booking" if join_url else None, join_url)
+    return await send_email(to, f"You're in — {class_title}", html, f"A spot opened. You're confirmed for {class_title} at {when}.")
+
+
+async def send_payment_receipt(to: str, description: str, amount: float, currency: str = "usd", receipt_id: Optional[str] = None) -> bool:
+    cur = (currency or "usd").upper()
+    amt = f"{cur} {float(amount or 0):,.2f}"
+    ref = f'<br/><span style="color:#839682;font-size:12px;">Reference: {receipt_id}</span>' if receipt_id else ""
+    body = (
+        "Thank you for your purchase — here is your receipt.<br/><br/>"
+        f"<strong>{description}</strong><br/>"
+        f"<strong>Amount paid:</strong> {amt}{ref}<br/><br/>"
+        "This email confirms your payment was received successfully. Namaste."
+    )
+    html = _wrap("Payment received.", body)
+    return await send_email(to, f"Your Tony Yoga receipt — {amt}", html, f"Payment received: {description} — {amt}")

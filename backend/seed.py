@@ -1,0 +1,528 @@
+"""Seed initial data on first startup (idempotent)."""
+import os
+from datetime import timedelta, datetime
+from core import db, logger, now_utc, gen_id, gen_referral_code, hash_password, verify_password
+
+
+async def seed():
+    # Admin
+    admin_email = os.environ.get("ADMIN_EMAIL", "tony@tonyyoga.com")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "TonyYoga2026!")
+    existing = await db.users.find_one({"email": admin_email})
+    if not existing:
+        await db.users.insert_one({
+            "id": gen_id(), "email": admin_email, "name": "Tony Sanchez",
+            "password_hash": hash_password(admin_password),
+            "role": "admin", "active": True,
+            "bio": "Founder & lead instructor. 50+ years of practice. Trained at Ghosh's College of Physical Education, Kolkata (1983). Creator of The Ideal Yoga Practice — Core 26+, Core 40, Core 84.",
+            "photo_url": "https://images.squarespace-cdn.com/content/v1/620bca2d082bbf5542408178/2e0d829f-31b4-44fe-98e5-25e88270dd0f/Untitled+design.jpg",
+            "years_experience": 50, "styles": ["Core 26+", "Core 40", "Core 84", "Tree of Yoga"],
+            "source": "seed", "created_at": now_utc().isoformat(),
+        })
+    elif not verify_password(admin_password, existing.get("password_hash", "")):
+        await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+
+    if not await db.users.find_one({"email": "student@demo.com"}):
+        await db.users.insert_one({
+            "id": gen_id(), "email": "student@demo.com", "name": "Demo Student",
+            "password_hash": hash_password("Student2026!"),
+            "role": "student", "level": "intermediate",
+            "goals": ["flexibility", "stress relief"], "timezone": "UTC",
+            "active": True, "source": "seed", "created_at": now_utc().isoformat(),
+        })
+
+    # Seed a dedicated instructor so the Instructor Dashboard has an owner + data.
+    if not await db.users.find_one({"email": "instructor@demo.com"}):
+        await db.users.insert_one({
+            "id": gen_id(), "email": "instructor@demo.com", "name": "Ana Ruiz",
+            "password_hash": hash_password("Instructor2026!"),
+            "role": "instructor", "level": "advanced", "timezone": "UTC",
+            "bio": "Certified Ghosh-lineage instructor. Leads Vinyasa and Power classes.",
+            "tax_nif": "X1234567Z", "iban": "ES9121000418450200051332",
+            "active": True, "source": "seed", "created_at": now_utc().isoformat(),
+        })
+
+    if await db.membership_plans.count_documents({}) == 0:
+        await db.membership_plans.insert_many([
+            {"id": gen_id(),
+             "name": "i18n:memb.plan.essential.name",
+             "description": "i18n:memb.plan.essential.desc",
+             "price": 29.0, "currency": "usd", "billing_cycle": "monthly", "tier": "online_only",
+             "trial_days": 7,
+             "features": [
+                "i18n:memb.feat.live_2pw",
+                "i18n:memb.feat.library_full",
+                "i18n:memb.feat.programs_one",
+                "i18n:memb.feat.community",
+                "i18n:memb.feat.cancel_any",
+             ],
+             "is_active": True, "created_at": now_utc().isoformat()},
+            {"id": gen_id(),
+             "name": "i18n:memb.plan.unlimited.name",
+             "description": "i18n:memb.plan.unlimited.desc",
+             "price": 59.0, "currency": "usd", "billing_cycle": "monthly", "tier": "online_inperson",
+             "trial_days": 7,
+             "features": [
+                "i18n:memb.feat.live_unlimited",
+                "i18n:memb.feat.library_full",
+                "i18n:memb.feat.programs_all",
+                "i18n:memb.feat.workshops_10",
+                "i18n:memb.feat.private_disc",
+                "i18n:memb.feat.cancel_any",
+             ],
+             "is_active": True, "created_at": now_utc().isoformat()},
+            {"id": gen_id(),
+             "name": "i18n:memb.plan.annual.name",
+             "description": "i18n:memb.plan.annual.desc",
+             "price": 999.0, "currency": "usd", "billing_cycle": "yearly", "tier": "vip",
+             "trial_days": 0,
+             "features": [
+                "i18n:memb.feat.live_unlimited",
+                "i18n:memb.feat.library_full",
+                "i18n:memb.feat.programs_all",
+                "i18n:memb.feat.workshops_20",
+                "i18n:memb.feat.private_disc",
+                "i18n:memb.feat.priority_support",
+                "i18n:memb.feat.offline_downloads",
+             ],
+             "is_active": True, "created_at": now_utc().isoformat()},
+        ])
+
+    admin_user = await db.users.find_one({"role": "admin"})
+    if admin_user and await db.class_templates.count_documents({}) == 0:
+        templates = [
+            {"id": gen_id(), "title": "Morning Vinyasa Flow", "description": "Wake up with breath and flow.",
+             "instructor_id": admin_user["id"], "location_type": "online", "location_detail": "Zoom",
+             "style": "Vinyasa", "level": "intermediate", "duration_minutes": 60, "capacity": 30,
+             "props_needed": ["mat"], "created_by": admin_user["id"], "created_at": now_utc().isoformat()},
+            {"id": gen_id(), "title": "Gentle Hatha", "description": "Slow, mindful and grounded.",
+             "instructor_id": admin_user["id"], "location_type": "in-person", "location_detail": "Studio A, 123 Sunrise Ave",
+             "style": "Hatha", "level": "beginner", "duration_minutes": 75, "capacity": 18,
+             "props_needed": ["mat", "blocks"], "created_by": admin_user["id"], "created_at": now_utc().isoformat()},
+            {"id": gen_id(), "title": "Therapeutic Back Care", "description": "Heal and strengthen the spine.",
+             "instructor_id": admin_user["id"], "location_type": "online", "location_detail": "Zoom",
+             "style": "Therapeutic", "level": "all", "duration_minutes": 60, "capacity": 25,
+             "props_needed": ["mat", "blanket"], "created_by": admin_user["id"], "created_at": now_utc().isoformat()},
+            {"id": gen_id(), "title": "Power Yoga", "description": "Strong, energizing practice.",
+             "instructor_id": admin_user["id"], "location_type": "in-person", "location_detail": "Studio A",
+             "style": "Power", "level": "advanced", "duration_minutes": 60, "capacity": 20,
+             "props_needed": ["mat", "towel"], "created_by": admin_user["id"], "created_at": now_utc().isoformat()},
+        ]
+        await db.class_templates.insert_many(templates)
+        base = now_utc().replace(hour=8, minute=0, second=0, microsecond=0)
+        instances = []
+        for i in range(7):
+            for j, t in enumerate(templates):
+                start = base + timedelta(days=i, hours=j * 2)
+                instances.append({
+                    "id": gen_id(), "template_id": t["id"], "title": t["title"],
+                    "instructor_id": t["instructor_id"], "location_type": t["location_type"],
+                    "location_detail": t.get("location_detail"),
+                    "style": t["style"], "level": t["level"], "duration_minutes": t["duration_minutes"],
+                    "start_time": start.isoformat(),
+                    "end_time": (start + timedelta(minutes=t["duration_minutes"])).isoformat(),
+                    "capacity": t["capacity"], "is_recorded": True,
+                    "status": "scheduled", "bookings_count": 0,
+                    "created_at": now_utc().isoformat(),
+                })
+        await db.class_instances.insert_many(instances)
+
+    if admin_user:
+        # Seed the Core series programs only if they aren't present yet (idempotent, additive).
+        # No destructive deletes: existing content is always preserved on startup/deploy.
+        if not await db.programs.find_one({"title": "Core 26+ Series"}):
+            COVERS = {
+                "core26": "https://customer-assets.emergentagent.com/job_yogasage/artifacts/ayolpmc7_3.png",
+                "core40": "https://customer-assets.emergentagent.com/job_yogasage/artifacts/lphigt25_71.jpg",
+                "core84": "https://customer-assets.emergentagent.com/job_yogasage/artifacts/xy66ku8a_25.png",
+            }
+            DEMO_VIDEO = "https://assets.mixkit.co/videos/preview/mixkit-young-woman-doing-yoga-on-a-rooftop-4849-large.mp4"
+
+            programs_spec = [
+                {
+                    "key": "core26",
+                    "title": "Core 26+ Series",
+                    "description": "The foundational 26-pose hot yoga sequence. Perfect for beginners and those looking to master the essential poses that form the basis of all yoga practice. 200 hours.",
+                    "level": "beginner", "style": "Core 26+",
+                    "duration_weeks": 12, "price": 199.0, "currency": "eur",
+                    "benefits": ["26 Classical Poses", "Beginner Friendly", "Hot Yoga Foundation", "Breathing Techniques"],
+                    "lessons": [
+                        "Welcome & Setup · Your Practice Begins",
+                        "Pranayama · Standing Deep Breathing",
+                        "Half Moon Pose · Ardha Chandrasana",
+                        "Awkward Pose · Utkatasana",
+                        "Eagle Pose · Garurasana",
+                        "Standing Head to Knee · Dandayamana Janushirasana",
+                        "Standing Bow Pulling Pose · Dandayamana Dhanurasana",
+                        "Balancing Stick Pose · Tuladandasana",
+                        "Standing Separate Leg Stretching · Dandayamana Bibhaktapada Paschimotthanasana",
+                        "Triangle Pose · Trikonasana",
+                        "Standing Separate Leg Head to Knee · Dandayamana Bibhaktapada Janushirasana",
+                        "Tree Pose & Toe Stand · Tadasana & Padangustasana",
+                        "Dead Body Pose · Savasana",
+                        "Wind Removing Pose · Pavanamuktasana",
+                        "Sit-Up & Cobra · Bhujangasana",
+                        "Locust Pose · Salabhasana",
+                        "Full Locust · Poorna Salabhasana",
+                        "Bow Pose · Dhanurasana",
+                        "Fixed Firm Pose · Supta Vajrasana",
+                        "Half Tortoise · Ardha Kurmasana",
+                        "Camel Pose · Ustrasana",
+                        "Rabbit Pose · Sasangasana",
+                        "Head to Knee with Stretching · Janushirasana with Paschimotthanasana",
+                        "Spine Twisting Pose · Ardha Matsyendrasana",
+                        "Blowing in Firm · Kapalbhati in Vajrasana",
+                        "Closing Sequence · Integration",
+                    ],
+                },
+                {
+                    "key": "core40",
+                    "title": "Core 40 Fitness",
+                    "description": "A comprehensive 40-pose yoga fitness system. Combines standing postures, floor work, and breathing exercises for complete mind-body transformation. 300 hours.",
+                    "level": "intermediate", "style": "Core 40",
+                    "duration_weeks": 16, "price": 299.0, "currency": "eur",
+                    "benefits": ["40 Progressive Poses", "Standing & Floor Series", "Detailed Instructions", "Inspirational Wisdom"],
+                    "lessons": [
+                        "Introduction · The Practice & Its Principles",
+                        "Pranayama Series · Breath as Foundation",
+                        "Standing Series Part 1 · Half Moon & Backbend",
+                        "Standing Series Part 2 · Awkward & Eagle",
+                        "Standing Series Part 3 · Standing Head to Knee",
+                        "Standing Series Part 4 · Standing Bow & Balancing Stick",
+                        "Standing Series Part 5 · Separate Leg & Triangle",
+                        "Standing Series Part 6 · Tree & Toe Stand",
+                        "Transitional Savasana",
+                        "Floor Series Part 1 · Wind Removing & Sit-Up",
+                        "Floor Series Part 2 · Cobra to Full Locust",
+                        "Floor Series Part 3 · Bow to Fixed Firm",
+                        "Floor Series Part 4 · Half Tortoise to Camel",
+                        "Floor Series Part 5 · Rabbit & Head to Knee",
+                        "Floor Series Part 6 · Spine Twist & Kapalbhati",
+                        "Tree of Yoga · Sun Salutation A",
+                        "Tree of Yoga · Sun Salutation B",
+                        "Tree of Yoga · Warrior Sequences",
+                        "Tree of Yoga · Hip Openers",
+                        "Tree of Yoga · Backbend Therapy",
+                        "Tree of Yoga · Forward Folds & Twists",
+                        "Tree of Yoga · Inversions Intro",
+                        "Tree of Yoga · Restorative Mudras",
+                        "Closing Integration · Building Your Daily Practice",
+                    ],
+                },
+                {
+                    "key": "core84",
+                    "title": "Core 84 Asana Mastery",
+                    "description": "Master all 84 classical yoga asanas across 18 progressive series. From foundational breathing to advanced inversions — the ultimate yoga journey. 500 hours.",
+                    "level": "advanced", "style": "Core 84",
+                    "duration_weeks": 24, "price": 599.0, "currency": "eur",
+                    "benefits": ["84 Classical Asanas", "18 Progressive Series", "Beginner to Expert", "Lifetime Access"],
+                    "lessons": [
+                        "Series 01 · Pranayama & Bandhas",
+                        "Series 02 · Surya Namaskar Foundations",
+                        "Series 03 · Standing Hip-Openers",
+                        "Series 04 · Standing Backbends",
+                        "Series 05 · Standing Forward Folds",
+                        "Series 06 · Standing Balances",
+                        "Series 07 · Floor Forward Folds",
+                        "Series 08 · Floor Backbends I — Cobra & Locust Family",
+                        "Series 09 · Floor Backbends II — Bow & Camel Family",
+                        "Series 10 · Hip Opening Series",
+                        "Series 11 · Twists — Seated & Reclined",
+                        "Series 12 · Arm Balances I — Crow & Side Crow",
+                        "Series 13 · Arm Balances II — Eight-Angle & Firefly",
+                        "Series 14 · Inversions I — Headstand Family",
+                        "Series 15 · Inversions II — Shoulderstand & Plough",
+                        "Series 16 · Inversions III — Handstand Progression",
+                        "Series 17 · Advanced Backbends — Kapotasana & Tiriang Mukhottanasana",
+                        "Series 18 · Closing — Mudras, Savasana & Integration",
+                    ],
+                },
+            ]
+
+            for spec in programs_spec:
+                pid = gen_id()
+                cover = COVERS[spec["key"]]
+                await db.programs.insert_one({
+                    "id": pid,
+                    "title": spec["title"],
+                    "description": spec["description"],
+                    "level": spec["level"],
+                    "style": spec["style"],
+                    "instructor_id": admin_user["id"],
+                    "duration_weeks": spec["duration_weeks"],
+                    "price_model": "one_time",
+                    "price": spec["price"],
+                    "currency": spec["currency"],
+                    "cover_image": cover,
+                    "trailer_url": DEMO_VIDEO,
+                    "benefits": spec["benefits"],
+                    "included_in_plans": [],
+                    "rating": 4.9, "review_count": 0,
+                    "created_at": now_utc().isoformat(),
+                })
+                lessons_docs = []
+                videos_docs = []
+                for idx, title in enumerate(spec["lessons"]):
+                    vid = gen_id()
+                    lid = gen_id()
+                    is_free = (idx == 0)
+                    videos_docs.append({
+                        "id": vid, "title": title,
+                        "description": f"{title} — guided practice in the {spec['title']} series.",
+                        "duration_minutes": 25 + (idx % 5) * 5,
+                        "level": spec["level"], "style": spec["style"],
+                        "tags": [spec["style"].lower(), "core"],
+                        "video_url": DEMO_VIDEO,
+                        "visibility": "free" if is_free else "program",
+                        "program_id": pid, "instructor_id": admin_user["id"],
+                        "cover_image": cover,
+                        "views": 0, "created_at": now_utc().isoformat(),
+                    })
+                    lessons_docs.append({
+                        "id": lid, "program_id": pid, "video_id": vid,
+                        "order_index": idx + 1,
+                        "is_free_preview": is_free,
+                    })
+                await db.videos.insert_many(videos_docs)
+                await db.program_lessons.insert_many(lessons_docs)
+
+            # Standalone free meditation (only if not present)
+            if not await db.videos.find_one({"title": "10-min Morning Meditation"}):
+                await db.videos.insert_one({
+                    "id": gen_id(), "title": "10-min Morning Meditation",
+                    "description": "Gentle start to your day.",
+                    "duration_minutes": 10, "level": "all", "style": "Meditation",
+                    "tags": ["meditation", "morning"],
+                    "video_url": DEMO_VIDEO, "visibility": "free",
+                    "program_id": None, "instructor_id": admin_user["id"],
+                    "cover_image": "https://images.pexels.com/photos/8436684/pexels-photo-8436684.jpeg?auto=compress",
+                    "views": 0, "created_at": now_utc().isoformat(),
+                })
+
+    if await db.products.count_documents({}) == 0:
+        await db.products.insert_many([
+            {"id": gen_id(), "title": "Tony's Cork Yoga Mat", "description": "Sustainable cork & natural rubber mat.",
+             "type": "physical", "category": "mats", "price": 89.0, "currency": "usd",
+             "stock_qty": 50, "images": ["https://images.unsplash.com/photo-1637157216470-d92cd2edb2e8?crop=entropy&cs=srgb&fm=jpg&q=85"],
+             "rating": 4.8, "created_at": now_utc().isoformat()},
+            {"id": gen_id(), "title": "The Yogi's Daily Journal", "description": "180-day yoga practice journal by Tony Sanchez.",
+             "type": "physical", "category": "books", "price": 28.0, "currency": "usd",
+             "stock_qty": 100, "images": ["https://images.pexels.com/photos/7500651/pexels-photo-7500651.jpeg?auto=compress&cs=tinysrgb&dpr=2"],
+             "external_amazon_link": "https://www.amazon.com",
+             "rating": 4.9, "created_at": now_utc().isoformat()},
+            {"id": gen_id(), "title": "Tony Yoga Tee — Sand", "description": "Organic cotton, branded subtly.",
+             "type": "physical", "category": "apparel", "price": 34.0, "currency": "usd",
+             "stock_qty": 75, "images": ["https://images.pexels.com/photos/8436684/pexels-photo-8436684.jpeg?auto=compress"],
+             "variants": [{"size": "S"}, {"size": "M"}, {"size": "L"}, {"size": "XL"}],
+             "rating": 4.6, "created_at": now_utc().isoformat()},
+            {"id": gen_id(), "title": "Cork Blocks (Set of 2)", "description": "Natural cork yoga blocks.",
+             "type": "physical", "category": "mats", "price": 32.0, "currency": "usd",
+             "stock_qty": 60, "images": ["https://images.unsplash.com/photo-1637157216470-d92cd2edb2e8?crop=entropy&cs=srgb&fm=jpg&q=85"],
+             "rating": 4.7, "created_at": now_utc().isoformat()},
+        ])
+
+    if await db.announcements.count_documents({}) == 0:
+        await db.announcements.insert_one({
+            "id": gen_id(), "title": "Welcome to Tony Yoga",
+            "body": "We've launched the new home for our community. Browse the new schedule and try a free class.",
+            "audience": "all", "created_at": now_utc().isoformat(), "author": "Tony",
+        })
+
+    # Seed workshops (idempotent — only if collection empty)
+    if await db.workshops.count_documents({}) == 0:
+        await db.workshops.insert_many([
+            {
+                "id": gen_id(),
+                "title": "Genesis of Yoga · Core 26+",
+                "subtitle": "For students or teachers to deepen knowledge and improve practice.",
+                "system": "Core 26+",
+                "description": "We cover philosophy, history, practice principles and movement in the planes — for therapeutic, safe and sustainable practice and teaching.",
+                "location": "Villa San Pedro · Málaga, Spain",
+                "start_date": "2026-04-08T09:00:00+00:00",
+                "end_date": "2026-04-13T18:00:00+00:00",
+                "nights": 6, "meals_included": True,
+                "price_eur": 1600.0, "teacher_training_price_eur": None,
+                "cover_image": "https://images.squarespace-cdn.com/content/v1/620bca2d082bbf5542408178/1645608838615-ZCYH6HCH1EZN3O08MN54/Core26.jpg",
+                "schedule": "9:00–1:00 pm / 3:00–6:00 pm",
+                "capacity": 14, "is_active": True,
+                "created_at": now_utc().isoformat(),
+            },
+            {
+                "id": gen_id(),
+                "title": "Yoga Holiday",
+                "subtitle": "Yoga · Museums · Beach · Fine Dining",
+                "system": "Yoga Holiday",
+                "description": "A gentler retreat hosted with Isabel @yogagbg — daily practice, exploration of Málaga's museums and beaches, and slow dinners. Five days of restoration.",
+                "location": "Villa San Pedro · Málaga, Spain",
+                "start_date": "2026-05-08T09:00:00+00:00",
+                "end_date": "2026-05-12T18:00:00+00:00",
+                "nights": 5, "meals_included": True,
+                "price_eur": 1200.0, "teacher_training_price_eur": None,
+                "cover_image": "https://images.squarespace-cdn.com/content/v1/620bca2d082bbf5542408178/6b55c6a0-8c26-4670-8cb7-68a45f7371fb/TonySanchez-head-to-knee.png",
+                "schedule": "Morning practice + afternoons free",
+                "capacity": 14, "is_active": True,
+                "created_at": now_utc().isoformat(),
+            },
+            {
+                "id": gen_id(),
+                "title": "Classic 84 Asanas · Core 84",
+                "subtitle": "For advanced students or teachers to take your practice to a higher level.",
+                "system": "Core 84",
+                "description": "We cover yoga philosophy, history, practice principles and movement in the planes for safe and sustainable practice and teaching. The full Ghosh lineage 84-asana challenge system.",
+                "location": "Villa San Pedro · Málaga, Spain",
+                "start_date": "2026-07-14T09:00:00+00:00",
+                "end_date": "2026-07-20T18:00:00+00:00",
+                "nights": 6, "meals_included": True,
+                "price_eur": 1600.0, "teacher_training_price_eur": 3500.0,
+                "cover_image": "https://images.squarespace-cdn.com/content/v1/620bca2d082bbf5542408178/1645553998616-K2P2CXQSJD43Y1JDV59X/Core+84.jpg",
+                "schedule": "9:00–1:00 pm / 3:00–6:00 pm",
+                "capacity": 12, "is_active": True,
+                "created_at": now_utc().isoformat(),
+            },
+            {
+                "id": gen_id(),
+                "title": "Tree of Yoga · Core 40",
+                "subtitle": "All levels welcome — students and teachers.",
+                "system": "Core 40",
+                "description": "Learn yoga philosophy, history, practice principles and practice in the planes. Enhance your practice and improve your teachings. Includes the full Tree of Yoga sequences.",
+                "location": "Villa San Pedro · Málaga, Spain",
+                "start_date": "2026-12-01T09:00:00+00:00",
+                "end_date": "2026-12-07T18:00:00+00:00",
+                "nights": 6, "meals_included": True,
+                "price_eur": 1600.0, "teacher_training_price_eur": None,
+                "cover_image": "https://images.squarespace-cdn.com/content/v1/620bca2d082bbf5542408178/1645553875741-8O0MMKPYJ9Q2BX6F4SIH/Core+40.jpg",
+                "schedule": "9:00–1:00 pm / 3:00–6:00 pm",
+                "capacity": 14, "is_active": True,
+                "created_at": now_utc().isoformat(),
+            },
+        ])
+
+    # Backfill referral codes
+    users_no_code = await db.users.find({"referral_code": {"$exists": False}}, {"id": 1, "name": 1}).to_list(1000)
+    for u in users_no_code:
+        await db.users.update_one({"id": u["id"]}, {"$set": {"referral_code": gen_referral_code(u.get("name", "yogi"))}})
+
+    # Migrate legacy bcrypt magic-link rows: the plain token isn't recoverable,
+    # so mark unused legacy rows (token_hash present, token_sha absent) as expired.
+    # This lets us safely drop the bcrypt fallback in routers/auth.py.
+    legacy_purged = await db.magic_link_tokens.update_many(
+        {"used_at": None, "token_hash": {"$exists": True}, "token_sha": {"$exists": False}},
+        {"$set": {"used_at": now_utc().isoformat(), "migrated": True}},
+    )
+    if legacy_purged.modified_count:
+        logger.info(f"Migrated {legacy_purged.modified_count} legacy bcrypt magic-link rows (marked used).")
+
+    # Migrate referral_invites.created_at from ISO string -> native datetime (for accurate quota queries)
+    iso_invites = await db.referral_invites.find(
+        {"created_at": {"$type": "string"}}, {"id": 1, "created_at": 1}
+    ).to_list(5000)
+    for inv in iso_invites:
+        try:
+            dt = datetime.fromisoformat(inv["created_at"])
+            await db.referral_invites.update_one({"id": inv["id"]}, {"$set": {"created_at": dt}})
+        except Exception:
+            pass
+    if iso_invites:
+        logger.info(f"Migrated {len(iso_invites)} referral_invites.created_at to native datetime.")
+
+    # Indexes
+    # Seed a few starter news/blog posts so Home has content out of the box
+    if await db.news_posts.count_documents({}) == 0:
+        base_now = now_utc()
+        starter_posts = [
+            {
+                "id": gen_id(), "slug": "welcome-to-tony-yoga",
+                "title": "Welcome to Tony Yoga — the new online home",
+                "excerpt": "Same practice, same lineage — now with live Zoom classes, on-demand programs, and workshops all under one roof.",
+                "body": "For over 40 years Tony has taught The Ideal Yoga Practice. This platform brings Core 26+, Core 40 and Core 84 to your mat wherever you are. Log in, book a class, and let's practice together.",
+                "cover_image": "https://images.squarespace-cdn.com/content/v1/620bca2d082bbf5542408178/2e0d829f-31b4-44fe-98e5-25e88270dd0f/Untitled+design.jpg",
+                "category": "news", "tags": ["launch", "welcome"],
+                "is_published": True, "published_at": base_now.isoformat(),
+                "author_id": "seed", "author_name": "Tony Sanchez",
+                "created_at": base_now.isoformat(),
+            },
+            {
+                "id": gen_id(), "slug": "genesis-of-yoga-april-retreat",
+                "title": "Genesis of Yoga · Core 26+ · Málaga April 8–13",
+                "excerpt": "Six days at Villa San Pedro. Philosophy, practice, and slow meals — the perfect deep-dive for students or teachers.",
+                "body": "Join Tony in Málaga for the Genesis of Yoga Core 26+ retreat. Two practice sessions a day (9-1pm / 3-6pm), three meals daily, and 6 nights at Villa San Pedro. €1,600 all-in. Fourteen spots.",
+                "cover_image": "https://images.squarespace-cdn.com/content/v1/620bca2d082bbf5542408178/1645608838615-ZCYH6HCH1EZN3O08MN54/Core26.jpg",
+                "category": "event", "tags": ["retreat", "malaga", "core-26"],
+                "event_date": "2026-04-08T09:00:00+00:00",
+                "event_location": "Villa San Pedro · Málaga, Spain",
+                "is_published": True, "published_at": (base_now - timedelta(days=2)).isoformat(),
+                "author_id": "seed", "author_name": "Tony Sanchez",
+                "created_at": (base_now - timedelta(days=2)).isoformat(),
+            },
+            {
+                "id": gen_id(), "slug": "why-we-teach-core-84",
+                "title": "Why we teach the classic 84 asanas",
+                "excerpt": "A short reflection on the Ghosh lineage and why the 84-pose challenge is still the gold standard for teachers.",
+                "body": "The 84-asana challenge system, taught at Ghosh's College in Kolkata since 1923, remains the deepest practical body of work in hatha yoga. This post explains why we still use it — and how Core 84 fits into a modern practice.",
+                "cover_image": "https://images.squarespace-cdn.com/content/v1/620bca2d082bbf5542408178/1645553998616-K2P2CXQSJD43Y1JDV59X/Core+84.jpg",
+                "category": "blog", "tags": ["philosophy", "core-84", "ghosh"],
+                "is_published": True, "published_at": (base_now - timedelta(days=5)).isoformat(),
+                "author_id": "seed", "author_name": "Tony Sanchez",
+                "created_at": (base_now - timedelta(days=5)).isoformat(),
+            },
+        ]
+        await db.news_posts.insert_many(starter_posts)
+
+    # Seed starter podcast/broadcast episodes (idempotent — only if empty)
+    if await db.broadcasts.count_documents({}) == 0:
+        bnow = now_utc()
+        await db.broadcasts.insert_many([
+            {
+                "id": gen_id(), "title": "The breath is the practice",
+                "description": "A short talk on why pranayama comes first — and how the breath steadies the nervous system before a single pose.",
+                "media_type": "audio",
+                "media_url": "https://assets.mixkit.co/active_storage/sfx/2434/2434.wav",
+                "cover_image": "https://images.pexels.com/photos/8436684/pexels-photo-8436684.jpeg?auto=compress",
+                "tags": ["philosophy", "breath", "beginner"],
+                "program_id": None, "series": "Foundations", "publish_at": bnow.isoformat(),
+                "is_published": True, "notify_push": False, "notified": True,
+                "views": 0, "created_at": bnow.isoformat(),
+            },
+            {
+                "id": gen_id(), "title": "Inside the Ghosh lineage",
+                "description": "A video conversation on the 84-asana system, its history from Kolkata, and what it means for a modern practice.",
+                "media_type": "video",
+                "media_url": "https://www.youtube.com/watch?v=inpok4MKVLM",
+                "cover_image": "https://images.squarespace-cdn.com/content/v1/620bca2d082bbf5542408178/1645553998616-K2P2CXQSJD43Y1JDV59X/Core+84.jpg",
+                "tags": ["history", "core-84"],
+                "program_id": None, "series": "Foundations", "publish_at": (bnow - timedelta(days=3)).isoformat(),
+                "is_published": True, "notify_push": False, "notified": True,
+                "views": 0, "created_at": (bnow - timedelta(days=3)).isoformat(),
+            },
+        ])
+
+    # Idempotent: assign the instructor their classes + a revenue-share rule
+    # (runs after templates/instances/programs exist).
+    instructor = await db.users.find_one({"email": "instructor@demo.com"})
+    if instructor:
+        iid = instructor["id"]
+        pw = await db.class_templates.find_one({"title": "Power Yoga"})
+        if pw and pw.get("instructor_id") != iid:
+            await db.class_templates.update_one({"id": pw["id"]}, {"$set": {"instructor_id": iid}})
+            await db.class_instances.update_many({"template_id": pw["id"]}, {"$set": {"instructor_id": iid}})
+        prog = await db.programs.find_one({"title": "Core 40 Fitness"})
+        if prog and not await db.revenue_share_rules.find_one({"instructor_id": iid}):
+            await db.revenue_share_rules.insert_one({
+                "id": gen_id(), "instructor_id": iid, "type": "program",
+                "target_id": prog["id"], "percentage": 50.0, "created_at": now_utc().isoformat(),
+            })
+
+    try:
+        await db.users.create_index("email", unique=True)
+        await db.class_instances.create_index("start_time")
+        await db.bookings.create_index([("user_id", 1), ("class_instance_id", 1)])
+        await db.magic_link_tokens.create_index("email")
+        await db.magic_link_tokens.create_index("token_sha")
+        await db.password_reset_tokens.create_index("token_sha")
+        await db.payment_transactions.create_index("session_id", unique=True)
+        await db.users.create_index("referral_code")
+        await db.referral_invites.create_index([("referrer_id", 1), ("created_at", -1)])
+        await db.news_posts.create_index("slug", unique=True)
+        await db.news_posts.create_index([("is_published", 1), ("published_at", -1)])
+    except Exception as e:
+        logger.warning(f"Index creation issue: {e}")

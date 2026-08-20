@@ -1,0 +1,115 @@
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "sonner";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import AppShell from "@/components/AppShell";
+import Marketing from "@/pages/Marketing";
+import Landing from "@/pages/Landing";
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import HomePage from "@/pages/Home";
+import Schedule from "@/pages/Schedule";
+import ClassDetail from "@/pages/ClassDetail";
+import Programs from "@/pages/Programs";
+import ProgramDetail from "@/pages/ProgramDetail";
+import Library from "@/pages/Library";
+import VideoPlayer from "@/pages/VideoPlayer";
+import Memberships from "@/pages/Memberships";
+import Shop from "@/pages/Shop";
+import ProductDetail from "@/pages/ProductDetail";
+import Workshops from "@/pages/Workshops";
+import News from "@/pages/News";
+import Broadcasts from "@/pages/Broadcasts";
+import Profile from "@/pages/Profile";
+import Referrals from "@/pages/Referrals";
+import Admin from "@/pages/Admin";
+import Instructor from "@/pages/Instructor";
+import ResetPassword from "@/pages/ResetPassword";
+import MagicLink from "@/pages/MagicLink";
+import Cart from "@/pages/Cart";
+import WorkshopDetail from "@/pages/WorkshopDetail";
+import Streak from "@/pages/Streak";
+import Passes from "@/pages/Passes";
+import Wishlist from "@/pages/Wishlist";
+import { CheckoutSuccess, CheckoutCancel } from "@/pages/Checkout";
+import Certificate from "@/pages/Certificate";
+import InstallPrompt from "@/components/InstallPrompt";
+import "@/App.css";
+
+function RequireAuth({ children }) {
+  const { user, ready } = useAuth();
+  if (!ready) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function Landed() {
+  const { user, ready } = useAuth();
+  if (!ready) return null;
+  return user ? <Navigate to="/home" replace /> : <Landing />;
+}
+
+function AppRoot() {
+  // Marketing site is public — never auto-redirect logged-in users.
+  // Clicking "Open the app" takes them to /home.
+  return <Marketing />;
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/certificate/:code" element={<Certificate />} />
+          <Route element={<AppShell />}>
+            <Route path="/" element={<AppRoot />} />
+            <Route path="/welcome" element={<Landed />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/magic-link" element={<MagicLink />} />
+            <Route path="/home" element={<HomePage />} />
+            <Route path="/schedule" element={<Schedule />} />
+            <Route path="/schedule/:id" element={<ClassDetail />} />
+            <Route path="/programs" element={<Programs />} />
+            <Route path="/programs/:id" element={<ProgramDetail />} />
+            <Route path="/library" element={<Library />} />
+            <Route path="/library/:id" element={<VideoPlayer />} />
+            <Route path="/memberships" element={<Memberships />} />
+            <Route path="/shop" element={<Shop />} />
+            <Route path="/shop/:id" element={<ProductDetail />} />
+            <Route path="/workshops" element={<Workshops />} />
+            <Route path="/workshops/:id" element={<WorkshopDetail />} />
+            <Route path="/news" element={<News />} />
+            <Route path="/broadcasts" element={<Broadcasts />} />
+            <Route path="/broadcasts/:id" element={<Broadcasts />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/streak" element={<RequireAuth><Streak /></RequireAuth>} />
+            <Route path="/passes" element={<Passes />} />
+            <Route path="/wishlist" element={<RequireAuth><Wishlist /></RequireAuth>} />
+            <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+            <Route path="/referrals" element={<RequireAuth><Referrals /></RequireAuth>} />
+            <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
+            <Route path="/instructor" element={<RequireAuth><Instructor /></RequireAuth>} />
+            <Route path="/checkout/success" element={<CheckoutSuccess />} />
+            <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+        <InstallPrompt />
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            style: {
+              background: "#1C221F",
+              color: "#FAFAF7",
+              border: "none",
+              borderRadius: "999px",
+              padding: "10px 20px",
+              fontSize: "13px",
+            },
+          }}
+        />
+      </BrowserRouter>
+    </AuthProvider>
+  );
+}

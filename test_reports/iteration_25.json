@@ -1,0 +1,50 @@
+{
+  "summary": "Iteration 25 — validated the two new modules end-to-end: Podcast/Broadcast episodes (admin CRUD, scheduling/gating, publish-now, public page + filters + inline players, bottom nav) and Zoom live classes (mock meeting creation, recording attach with replay window, gated student access). 20/20 backend pytest assertions pass; all UI flows in the request pass. One HIGH security leak found: the public GET /api/class-instances list returns raw docs including zoom_start_url (host start URL) and recording_url, bypassing the gating that GET /api/class-instances/{id} and /recording implement.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/class-instances", "issue": "Unauthenticated list endpoint returns raw class docs including `zoom_start_url` (Zoom HOST start link) and `recording_url`. Reproduced: anon GET returned zoom_start_url=https://zoom.us/s/mock-... and recording_url=https://example.com/LEAKCHECK.mp4. This bypasses the booking/subscription gate and the replay-expiry check in GET /api/class-instances/{id}/recording (get_instance already strips both fields; list_instances does not). Strip both in list_instances (and any instructor/admin list that is not role-gated).", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "GET /api/class-instances/{id}/recording", "issue": "Any user with an active/trialing subscription can watch a class recording even if they never booked that class (`member` fallback in the auth check). If spec 4.3 means 'students who booked', this is broader than intended — confirm it is deliberate."},
+      {"endpoint": "GET /api/broadcasts", "issue": "publish_at gating uses lexicographic string comparison on ISO timestamps. Works today because all values are stored as UTC +00:00 isoformat, but any doc written with a different offset (or naive) would sort/compare wrongly. Consider storing real datetimes."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin → Broadcast → New episode", "issues": ["'Schedule release' uses the raw browser datetime-local picker (native mm/dd/yyyy --:-- control) instead of the app's shadcn date/time component — inconsistent with the rest of the design system."]},
+      {"screen": "Admin → Classes", "issues": ["'Add recording' is offered for in-person classes too (Gentle Hatha / Power Yoga). Harmless but may be unintended; consider hiding unless is_recorded/online."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration25.py",
+    "/app/backend/tests/leakcheck_iteration25.py",
+    "/app/backend/tests/cleanup_iteration25.py",
+    "/app/test_reports/pytest/iteration25.xml"
+  ],
+  "action_items": [
+    "HIGH: strip zoom_start_url and recording_url from GET /api/class-instances (list_instances) responses — currently leaked to anonymous callers.",
+    "Confirm whether active subscribers who never booked should see class recordings (current behaviour allows it).",
+    "Replace the native datetime-local 'Schedule release' input in Admin → Broadcast with the shadcn date/time picker."
+  ],
+  "critical_code_review_comments": [
+    "scheduling.py: get_instance sanitises host/recording fields but list_instances returns raw Mongo docs — sanitisation must be applied in one shared helper so new endpoints can't regress.",
+    "zoom.py attach_recording: replay_days correctly clamped to 1..60 (verified 999 -> 60). Good.",
+    "broadcasts.py publish tick + publish endpoint set notified=True before the pre-fetched doc is checked, so the push fires exactly once — correct.",
+    "Admin.jsx is 1617 lines — well over the 700-line guideline; EpisodesManager/BroadcastPane/ClassesPane should be split into separate files."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration25.py",
+    "/app/backend/tests/leakcheck_iteration25.py",
+    "/app/backend/tests/cleanup_iteration25.py",
+    "/app/test_reports/iteration_25.json"
+  ],
+  "success_rate": {"backend": "94% (20/20 pytest pass; 1 unauthenticated data-leak defect found via targeted leak check)", "frontend": "100% of requested flows pass"},
+  "seed_data_creation": "All test artifacts cleaned up: episodes created via API and UI deleted (admin list back to exactly the 2 seeded episodes: 'The breath is the practice', 'Inside the Ghosh lineage'); temporary class instances deleted; QA recording removed from seeded class b1c1b8cc (Therapeutic Back Care) and the student's test booking cancelled. One transient QA student account (TEST_qa_*@example.com) remains from the 403 access-control test. NOTE: seeded online class 'Morning Vinyasa Flow' 8/21 already had a mock Zoom link + recording before my run (pre-existing, left as-is).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "admin tony@tonyyoga.com / TonyYoga2026!; student student@demo.com / Student2026! (from /app/memory/test_credentials.md)",
+  "context_for_next_testing_agent": "Run `pytest /app/backend/tests/test_iteration25.py` for broadcast+zoom regression (uses direct pymongo only to force recording expiry). Zoom is in MOCK mode by design (join urls https://zoom.us/j/mock-<id8>). Re-verify the /api/class-instances leak with /app/backend/tests/leakcheck_iteration25.py after the fix; consider promoting that check into test_iteration25.py once fixed. UI testids verified: episode-*, admin-episodes-list, bc-filter-*/bc-play-*/bc-player-*, nav-broadcasts, zoom-create-*/zoom-set-*, rec-add-*/rec-url-*/rec-days-*/rec-save-*/rec-set-*, class-join-zoom, class-recording, class-watch-recording, class-recording-expiry.",
+  "rca_of_the_issue": "routers/scheduling.py get_instance() explicitly pops zoom_start_url and recording_url, but list_instances() (line 331) returns `db.class_instances.find(query, {'_id': 0})` unmodified and has no auth dependency, so both host-only fields ship to any anonymous client of GET /api/class-instances. Repro: create an online class, attach a recording, then GET /api/class-instances?include_cancelled=true with no Authorization header. Mitigation: apply the same field-stripping (ideally a shared `_public_instance()` helper) in list_instances and in any other endpoint returning class_instances documents."
+}
