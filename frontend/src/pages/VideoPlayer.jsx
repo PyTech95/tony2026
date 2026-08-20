@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Lock, CheckCircle2 } from "lucide-react";
+import { Lock, CheckCircle2, Scissors } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
-import { isYouTube, parseYouTubeId } from "@/lib/youtube";
+import { isYouTube, parseYouTubeId, secToMMSS } from "@/lib/youtube";
 
 // Lazy-load the YouTube IFrame Player API once.
 let ytApiPromise = null;
@@ -127,6 +127,17 @@ export default function VideoPlayer() {
   const youtube = playable && isYouTube(v.video_url);
   const segStart = v.start_seconds || 0;
   const segEnd = v.end_seconds || undefined;
+  const clipLabel = segEnd && segEnd > segStart ? secToMMSS(segEnd - segStart) : null;
+
+  const ClipChip = () => clipLabel ? (
+    <div
+      data-testid="clip-duration-chip"
+      className="pointer-events-none absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm"
+    >
+      <Scissors className="h-3 w-3 text-[#E4A788]" />
+      {clipLabel} clip
+    </div>
+  ) : null;
 
   return (
     <div data-testid="video-player-page" className="pb-8">
@@ -135,11 +146,13 @@ export default function VideoPlayer() {
       <div className="mx-auto max-w-3xl px-5 space-y-5">
         {playable ? (
           youtube ? (
-            <div className="rounded-3xl overflow-hidden bg-black aspect-video" data-testid="video-youtube">
+            <div className="relative rounded-3xl overflow-hidden bg-black aspect-video" data-testid="video-youtube">
+              <ClipChip />
               <div ref={ytHostRef} className="h-full w-full" />
             </div>
           ) : (
-            <div className="rounded-3xl overflow-hidden bg-black aspect-video">
+            <div className="relative rounded-3xl overflow-hidden bg-black aspect-video">
+              <ClipChip />
               <video
                 ref={videoRef}
                 data-testid="video-el"
