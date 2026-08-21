@@ -1,0 +1,36 @@
+{
+  "summary": "Frontend-only regression sweep of the refactored admin console (Admin.jsx shell + 11 panes under src/pages/admin/). Found and fixed one CRITICAL refactor regression: CoursesPane.jsx called useAuth() without importing it, which crashed the whole app with a full-screen 'Uncaught runtime errors: useAuth is not defined' overlay the moment the Courses tab was clicked (admin console became unusable, all other tabs unreachable). After adding the missing import, all 11 tabs render correctly with zero console/page errors: Overview (stats cards + Today's schedule + recharts revenue chart), Courses (admin-courses editor + course-new), Bundles, Students, Classes (2442 chars of data), Applications (empty state), Broadcast (New Episode form: episode-title/url/save + admin-broadcast-send), Retreats (publish form + retreat-photo-upload present), Gift Cards, Settings (SMTP/Stripe/Zoom cards, 29 Field/Toggle inputs render), Import. Deep-link /admin?tab=settings opens Settings with the nav item highlighted; ?tab= updates on each click and stats clears it. Mobile 390px: nav is a horizontally scrollable row (scrollWidth>clientWidth), animated chevron cue visible at the right edge, no page horizontal overflow (scrollWidth 390 == clientWidth 390).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "admin/CoursesPane.jsx", "issue": "REGRESSION (FIXED BY TESTER): useAuth() used at line 248 but never imported after the file split -> ReferenceError crashed entire admin console on clicking Courses tab. Added `import { useAuth } from \"@/lib/auth\";`. Please keep this import.", "selector": "[data-testid=\"admin-tab-courses\"]", "priority": "CRITICAL"},
+      {"component": "admin/ApplicationsPane.jsx", "issue": "Empty state had no data-testid; tester added data-testid=\"admin-apps-empty\"", "selector": "[data-testid=\"admin-apps-empty\"]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin > Retreats publish form", "issues": ["Start date / End date use native browser <input type=date> pickers (mm/dd/yyyy + native calendar icon) instead of the shadcn Calendar component used elsewhere"]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Keep the useAuth import in CoursesPane.jsx (tester-applied fix) — without it the admin console is fully broken.",
+    "Post-refactor cleanup: every pane file carries the same ~40-symbol lucide-react import copied verbatim from the old monolith; almost all icons are unused per file. Trim to what each pane uses.",
+    "Lint errors remaining: react/no-unescaped-entities in CoursesPane.jsx:207 and StatsPane.jsx:76,87; unused eslint-disable directives in BundlesPane.jsx:21 and CoursesPane.jsx:20.",
+    "Optional: replace native date inputs in RetreatsPane with the shadcn calendar for consistency."
+  ],
+  "critical_code_review_comments": [
+    "A pure 'verbatim relocation' still broke a hook import — run `eslint` (no-undef) on the new files as a gate; ESLint caught this statically before any browser run.",
+    "SettingsPane.jsx is 506 lines and CoursesPane.jsx 381 lines with an embedded LessonsEditor; consider splitting SettingsPane by card (payments/email/zoom) for maintainability."
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/admin/CoursesPane.jsx",
+    "/app/frontend/src/pages/admin/ApplicationsPane.jsx"
+  ],
+  "success_rate": {"backend": "not tested (skipped per request)", "frontend": "100% after the one-line import fix (0% of admin console usable before it)"},
+  "seed_data_creation": "None. No retreats published, no emails triggered, no broadcast sent.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "Admin tony@tonyyoga.com / TonyYoga2026! (worked, no lockout hit)",
+  "context_for_next_testing_agent": "All 11 admin tabs verified rendering post-refactor (desktop 1920 + mobile 390), deep-link ?tab= verified, mobile chevron cue verified. Not re-tested: retreat upload/cancel/waitlist backend (iteration_35), sidebar layout basics (iteration_36), and no write/mutation flows were exercised in the panes (only render + presence of controls).",
+  "rca_of_the_issue": "During the Admin.jsx split, CoursesPane's body was moved into src/pages/admin/CoursesPane.jsx but the `useAuth` import (previously satisfied by Admin.jsx's own import) was not carried over. `const { user } = useAuth()` therefore threw ReferenceError on first render of the Courses pane, and since it happens during render React unmounted the tree and CRA showed the runtime-error overlay covering the whole app. Reproduction: login as admin -> /admin -> click admin-tab-courses. Mitigation applied: added the missing import; verified with ESLint (no-undef now clean for that symbol) and a browser sweep of all tabs."
+}

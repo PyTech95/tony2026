@@ -402,6 +402,13 @@ async def _fulfill_payment(txn: dict):
                 {"id": reservation_id},
                 {"$set": {"status": "deposit_paid", "deposit_paid_at": now_utc().isoformat()}},
             )
+            try:
+                reg = await db.workshop_registrations.find_one({"id": reservation_id}, {"_id": 0})
+                if reg:
+                    from email_service import send_retreat_booking
+                    await send_retreat_booking(reg, "deposit")
+            except Exception as e:
+                logger.warning(f"retreat deposit email failed for {reservation_id}: {e}")
     elif item_type == "workshop_balance":
         reservation_id = txn.get("metadata", {}).get("reservation_id") or txn.get("item_id")
         if reservation_id:
@@ -409,6 +416,13 @@ async def _fulfill_payment(txn: dict):
                 {"id": reservation_id},
                 {"$set": {"status": "paid_in_full", "balance_paid_at": now_utc().isoformat()}},
             )
+            try:
+                reg = await db.workshop_registrations.find_one({"id": reservation_id}, {"_id": 0})
+                if reg:
+                    from email_service import send_retreat_booking
+                    await send_retreat_booking(reg, "balance")
+            except Exception as e:
+                logger.warning(f"retreat balance email failed for {reservation_id}: {e}")
     elif item_type in ("drop_in", "class_pack"):
         credits = 1 if item_type == "drop_in" else 5
         await db.class_passes.update_one(

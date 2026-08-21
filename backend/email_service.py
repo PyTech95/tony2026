@@ -154,6 +154,47 @@ async def send_enquiry_ack(to: str, name: Optional[str] = None, interest: Option
                             f"Thanks {first} — we've received your enquiry and will reply shortly.")
 
 
+# Where retreat booking notifications are sent (Tony's team inboxes).
+RETREAT_ADMIN_EMAILS = ["tony@tonysanchezyoga.com", "tonyoga.online@gmail.com"]
+
+
+async def send_retreat_booking(reg: dict, kind: str = "deposit") -> None:
+    """Send a booking-confirmation email to the guest + a copy to Tony's team.
+    kind = 'deposit' (seat reserved) or 'balance' (paid in full). Best-effort."""
+    title = reg.get("workshop_title") or "your retreat"
+    start = str(reg.get("workshop_start_date", ""))[:10]
+    guest_email = reg.get("email")
+    first = (reg.get("name") or "").split(" ")[0] or "there"
+    if kind == "balance":
+        subject = f"Payment complete · {title}"
+        body = (f"Thank you, {first} — your balance for <strong>{title}</strong> is paid in full and "
+                f"your seat is fully confirmed. We can't wait to practice with you.")
+    else:
+        deposit = int(reg.get("deposit_eur", 0) or 0)
+        balance = int(reg.get("balance_eur", 0) or 0)
+        due = str(reg.get("balance_due_date", ""))[:10]
+        subject = f"Booking confirmed · {title}"
+        body = (f"You're booked, {first}! Your €{deposit} deposit for <strong>{title}</strong> is received "
+                f"and your seat is reserved.")
+        if balance > 0:
+            body += f"<br/><br/>Your remaining balance of €{balance} is due by {due}."
+    html = _wrap("Your retreat booking.",
+                 body + (f"<br/><br/><span style='color:#839682'>Retreat starts {start}.</span>" if start else ""))
+    if guest_email:
+        await send_email(guest_email, subject, html, f"{subject}" + (f" — starts {start}" if start else ""))
+    # Copy to Tony's team.
+    admin_html = _wrap(
+        "Retreat booking update",
+        f"<strong>{reg.get('name')}</strong> ({guest_email or '—'})<br/>"
+        f"Retreat: <strong>{title}</strong>{f' · starts {start}' if start else ''}<br/>"
+        f"Status: <strong>{'PAID IN FULL' if kind == 'balance' else 'Deposit paid — seat reserved'}</strong><br/>"
+        f"Phone: {reg.get('phone') or '—'}",
+    )
+    for admin_to in RETREAT_ADMIN_EMAILS:
+        await send_email(admin_to, f"[Booking] {title} · {reg.get('name')}", admin_html)
+
+
+
 async def send_referral_invite(to: str, inviter_name: str, share_url: str, personal_note: Optional[str] = None) -> bool:
     note_html = f'<p style="margin:16px 0;padding:16px;background:#F2F2EC;border-radius:12px;font-style:italic;color:#1C221F;">"{personal_note}"</p>' if personal_note else ""
     body = (
