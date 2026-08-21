@@ -1,23 +1,17 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { X, Gift, ArrowRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
 
-const RIBBON_VARIANTS = [
-  { id: "free", headline: "New here?", accent: "Your first class is free." },
-  { id: "try",  headline: "Never practiced with Tony?", accent: "Try a class on us." },
-  { id: "meet", headline: "This week only —", accent: "Meet Tony on the mat, free." },
-];
+const RIBBON_VARIANTS = ["free", "try", "meet"];
 
 function pickVariant() {
   try {
     const saved = localStorage.getItem("ty_ribbon_variant");
-    if (saved) {
-      const v = RIBBON_VARIANTS.find((x) => x.id === saved);
-      if (v) return v;
-    }
+    if (saved && RIBBON_VARIANTS.includes(saved)) return saved;
     const v = RIBBON_VARIANTS[Math.floor(Math.random() * RIBBON_VARIANTS.length)];
-    localStorage.setItem("ty_ribbon_variant", v.id);
+    localStorage.setItem("ty_ribbon_variant", v);
     return v;
   } catch {
     return RIBBON_VARIANTS[0];
@@ -26,6 +20,7 @@ function pickVariant() {
 
 /** Sticky ribbon at the top of the marketing site offering a free class. */
 export default function FreeClassRibbon() {
+  const { t } = useTranslation();
   const [dismissed, setDismissed] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [email, setEmail] = useState("");
@@ -54,7 +49,7 @@ export default function FreeClassRibbon() {
       const { data } = await api.post("/marketing/free-class-signup", {
         email: email.trim(),
         name: name.trim() || undefined,
-        source: `ribbon_${variant.id}`,
+        source: `ribbon_${variant}`,
       });
       try { localStorage.setItem("ty_free_class_claimed", "1"); } catch {}
       setClaimed(true);
@@ -68,23 +63,23 @@ export default function FreeClassRibbon() {
   if (dismissed) return null;
 
   return (
-    <div data-testid="free-class-ribbon" data-variant={variant.id} className="fixed top-0 inset-x-0 z-[60] safe-top">
+    <div data-testid="free-class-ribbon" data-variant={variant} className="fixed top-0 inset-x-0 z-[60] safe-top">
       <div className="bg-[#B25A45] text-[#FAFAF7]">
         <div className="mx-auto max-w-6xl px-4 py-2.5 flex items-center gap-3">
           <Gift className="h-4 w-4 text-[#FAFAF7] shrink-0" />
           {claimed ? (
-            <span className="text-[13px] flex-1 min-w-0 truncate">You've claimed your free class · check your email to sign in.</span>
+            <span className="text-[13px] flex-1 min-w-0 truncate">{t("ribbon.claimed")}</span>
           ) : (
             <>
               <span className="text-[13px] flex-1 min-w-0 truncate">
-                <span className="hidden sm:inline">{variant.headline} </span><strong>{variant.accent}</strong>
+                <span className="hidden sm:inline">{t(`ribbon.${variant}_h`)} </span><strong>{t(`ribbon.${variant}_a`)}</strong>
               </span>
               <button
                 onClick={() => setExpanded(true)}
                 data-testid="ribbon-claim-btn"
                 className="text-[12px] font-semibold underline underline-offset-4 hover:no-underline shrink-0"
               >
-                Claim →
+                {t("ribbon.claim")}
               </button>
             </>
           )}

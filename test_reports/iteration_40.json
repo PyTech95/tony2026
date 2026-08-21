@@ -1,0 +1,30 @@
+{
+  "summary": "Frontend-only i18n Spanish coverage verification (iteration 40). Verified Marketing homepage (Hero/nav/Story/Programs/Retreats/AppCTA/Footer) and Home dashboard render Spanish when [data-testid=lang-es] is selected, EN toggle restores English, language persists across /login and /memberships via localStorage ty_lang=es, no raw i18n keys leak, and zero console errors in either language. Also statically diffed en.json vs es.json (no missing keys) and validated every t(\"...\") key used in Marketing.jsx/Home.jsx exists in es.json.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Marketing '/' in ES", "issues": ["Top promo banner still English: 'New here? Your first class is free.' + 'Claim →' (not part of the intentionally-English sub-sections list)"]},
+      {"screen": "Home '/home' in ES", "issues": ["Practice-streak card untranslated: 'PRACTICE STREAK', 'days', '5 more to one week'", "Class date/time formatting stays English locale ('Fri, Aug 21 · 12:00 PM') — should use es-ES date locale when lang=es"]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Translate the top promo/announcement banner on Marketing ('New here? Your first class is free.' / 'Claim')",
+    "Translate Home practice-streak card strings (label, 'days', 'N more to one week')",
+    "Localize date/time formatting on Home upcoming-class list to es-ES when language is ES"
+  ],
+  "critical_code_review_comments": [
+    "en.json/es.json key parity is clean (0 missing keys); keep a CI check for parity as more strings are added",
+    "Untranslated dynamic date formatting suggests date-fns/Intl locale is hardcoded — pass i18n.language into the formatter"
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested", "frontend": "100% of requested Spanish strings verified (all 21 Marketing + all 13 Home expectations present)"},
+  "seed_data_creation": "none",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "student@demo.com / Student2026! (login worked, redirected to /home)",
+  "context_for_next_testing_agent": "All requested ES strings verified present on '/' and '/home'; string matching must be case-insensitive because several headings use CSS text-transform: uppercase. Remaining English on Marketing in ES: promo banner, plus known/expected FeatureStrip ('On demand'), InlineSignup ('Sign up'), value props, testimonials, FAQ. Remaining English on Home: streak card + date formatting.",
+  "rca_of_the_issue": "n/a — no failures. Earlier apparent 'missing' strings were false negatives from case-sensitive matching against uppercase-transformed headings."
+}

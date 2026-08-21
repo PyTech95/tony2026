@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Flame } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 export default function StreakCard() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [s, setS] = useState(null);
 
   useEffect(() => {
@@ -26,21 +28,21 @@ export default function StreakCard() {
           <Flame className={`h-6 w-6 ${s.current_streak > 0 ? "text-[#B25A45]" : "text-[#839682]"}`} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="eyebrow">Practice streak</div>
+          <div className="eyebrow">{t("streak.label")}</div>
           <div className="flex items-baseline gap-2 mt-0.5">
             <span className="serif text-3xl leading-none" data-testid="streak-card-count">{s.current_streak}</span>
-            <span className="text-xs text-[#6B7269]">day{s.current_streak === 1 ? "" : "s"}</span>
+            <span className="text-xs text-[#6B7269]">{s.current_streak === 1 ? t("streak.day") : t("streak.days")}</span>
           </div>
           {s.next_milestone ? (
             <div className="text-[11px] text-[#6B7269] mt-1">
-              {s.next_milestone - s.current_streak} more to {s.next_milestone === 7 ? "one week" : s.next_milestone === 30 ? "one month" : `${s.next_milestone} days`}
+              {s.next_milestone - s.current_streak} {t("streak.more_to")} {s.next_milestone === 7 ? t("streak.one_week") : s.next_milestone === 30 ? t("streak.one_month") : `${s.next_milestone} ${t("streak.days")}`}
             </div>
           ) : (
-            <div className="text-[11px] text-[#B25A45] mt-1">All milestones unlocked ✨</div>
+            <div className="text-[11px] text-[#B25A45] mt-1">{t("streak.all_unlocked")}</div>
           )}
         </div>
         {!s.practiced_today && (
-          <div className="text-xs font-semibold text-[#B25A45] shrink-0">Log →</div>
+          <div className="text-xs font-semibold text-[#B25A45] shrink-0">{t("streak.log")}</div>
         )}
       </div>
     </Link>
