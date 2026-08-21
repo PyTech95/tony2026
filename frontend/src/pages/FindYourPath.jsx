@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, ArrowLeft, Sparkles, Compass, Check, RotateCcw } from "lucide-react";
+import { ArrowRight, ArrowLeft, Sparkles, Compass, Check, RotateCcw, Mail } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
+import { useAuth } from "@/lib/auth";
 
 const STEPS = [
   {
@@ -65,10 +67,31 @@ const STEPS = [
 
 export default function FindYourPath() {
   const nav = useNavigate();
+  const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+
+  const sendResult = async (e) => {
+    e?.preventDefault?.();
+    if (!email.trim() || emailBusy) return;
+    setEmailBusy(true);
+    try {
+      const { data } = await api.post("/quiz/lead", {
+        email: email.trim(),
+        answers,
+        origin_url: window.location.origin,
+      });
+      setEmailSent(true);
+      toast.success(data.emailed ? "Sent — check your inbox for your plan." : "Saved — we'll be in touch with your plan.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Couldn't send — please try again.");
+    } finally { setEmailBusy(false); }
+  };
 
   const current = STEPS[step];
   const progress = result ? 100 : Math.round((step / STEPS.length) * 100);
@@ -231,6 +254,45 @@ export default function FindYourPath() {
               <p className="mt-6 text-sm text-[#6B7269]">
                 We couldn't find a match right now. <Link to="/programs" className="text-[#B25A45] underline">Browse all programs</Link>.
               </p>
+            )}
+
+            {!user && (
+              <div className="mt-6 rounded-3xl border border-[#E0D3B8] bg-[#FBF6EC] p-5" data-testid="quiz-email-capture">
+                {emailSent ? (
+                  <div className="flex items-start gap-3" data-testid="quiz-email-sent">
+                    <Check className="h-5 w-5 text-[#839682] mt-0.5 shrink-0" />
+                    <div>
+                      <div className="serif text-lg">Your plan is on its way.</div>
+                      <p className="text-sm text-[#6B7269] mt-1">Create your free account to save it and start practising.</p>
+                      <button onClick={() => nav(`/register?email=${encodeURIComponent(email)}`)} data-testid="quiz-signup-cta" className="pill pill-primary mt-3">
+                        Create free account <ArrowRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 text-[#5C5346]">
+                      <Mail className="h-4 w-4 text-[#B25A45]" />
+                      <span className="text-[15px] font-semibold">Email me my plan</span>
+                    </div>
+                    <p className="text-sm text-[#6B7269] mt-1">We'll send your program + membership match and help you get started — no pressure.</p>
+                    <form onSubmit={sendResult} className="mt-3 flex gap-2 flex-col sm:flex-row">
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@email.com"
+                        data-testid="quiz-email-input"
+                        className="flex-1 rounded-full border border-[#E0D3B8] bg-white px-5 py-3 text-[15px] focus:outline-none focus:border-[#B25A45]"
+                      />
+                      <button type="submit" disabled={emailBusy} data-testid="quiz-email-submit" className="pill pill-primary shrink-0">
+                        {emailBusy ? "Sending…" : "Send my plan"} <ArrowRight className="h-4 w-4" />
+                      </button>
+                    </form>
+                  </>
+                )}
+              </div>
             )}
 
             <button onClick={restart} data-testid="quiz-restart" className="mt-8 inline-flex items-center gap-1.5 text-sm text-[#6B7269] hover:text-[#1C221F]">

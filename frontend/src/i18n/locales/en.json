@@ -282,5 +282,18 @@
   "disc.result": "result",
   "disc.results": "results",
   "disc.program": "Program",
-  "disc.class": "Class"
+  "disc.class": "Class",
+  "med.eyebrow": "Calm & breath",
+  "med.title": "Meditation & Breathwork",
+  "med.intro": "Guided meditations, breathwork and yoga nidra to steady the mind, calm the nervous system and rest deeply.",
+  "med.daily": "Meditation of the day",
+  "med.play": "Play",
+  "med.min": "min",
+  "med.tab_all": "All",
+  "med.tab_meditation": "Meditation",
+  "med.tab_breathwork": "Breathwork",
+  "med.tab_nidra": "Yoga Nidra",
+  "med.search": "Search…",
+  "med.empty": "Nothing matches yet.",
+  "med.audio_unsupported": "Your browser does not support audio playback."
 }

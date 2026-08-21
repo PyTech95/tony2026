@@ -9,6 +9,7 @@ import Spinner from "@/components/Spinner";
 import CartBadge from "@/components/CartBadge";
 import HeartButton from "@/components/HeartButton";
 import BundleOffer from "@/components/BundleOffer";
+import CreditNudge from "@/components/CreditNudge";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -62,6 +63,8 @@ export default function ProductDetail() {
           </div>
         </div>
         <p className="text-[15px] text-[#545E56] leading-relaxed">{p.description}</p>
+
+        <CreditNudge testId="product-credit-nudge" />
 
         {p.variants?.length > 0 && (
           <div>

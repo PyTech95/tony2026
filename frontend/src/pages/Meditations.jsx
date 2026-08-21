@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, X, Clock, Play, Pause, Sparkles, Wind, Moon } from "lucide-react";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
 
-const TABS = [
-  { key: "all", label: "All", icon: Sparkles },
-  { key: "meditation", label: "Meditation", icon: Sparkles },
-  { key: "breathwork", label: "Breathwork", icon: Wind },
-  { key: "nidra", label: "Yoga Nidra", icon: Moon },
-];
-
 export default function Meditations() {
+  const { t } = useTranslation();
+  const TABS = [
+    { key: "all", label: t("med.tab_all"), icon: Sparkles },
+    { key: "meditation", label: t("med.tab_meditation"), icon: Sparkles },
+    { key: "breathwork", label: t("med.tab_breathwork"), icon: Wind },
+    { key: "nidra", label: t("med.tab_nidra"), icon: Moon },
+  ];
   const [rows, setRows] = useState(null);
   const [daily, setDaily] = useState(null);
   const [facets, setFacets] = useState({ focus_areas: [], durations: [] });
@@ -46,11 +47,11 @@ export default function Meditations() {
 
   return (
     <div data-testid="meditations-page" className="pb-10">
-      <PageHeader eyebrow="Calm & breath" title="Meditation & Breathwork" testId="meditations-header" />
+      <PageHeader eyebrow={t("med.eyebrow")} title={t("med.title")} testId="meditations-header" />
 
       <div className="mx-auto max-w-5xl px-5">
         <p className="text-[15px] text-[#545E56] leading-relaxed mb-5 max-w-2xl">
-          Guided meditations, breathwork and yoga nidra to steady the mind, calm the nervous system and rest deeply.
+          {t("med.intro")}
         </p>
 
         {daily && (
@@ -60,11 +61,11 @@ export default function Meditations() {
             className="w-full text-left rounded-3xl overflow-hidden bg-[#1C221F] text-white mb-6 grid sm:grid-cols-[1.4fr,1fr] group"
           >
             <div className="p-6 sm:p-8">
-              <div className="eyebrow !text-[#B25A45] mb-2">Meditation of the day</div>
+              <div className="eyebrow !text-[#B25A45] mb-2">{t("med.daily")}</div>
               <div className="serif text-2xl sm:text-3xl leading-tight mb-2">{daily.title}</div>
               <p className="text-white/70 text-sm leading-relaxed line-clamp-2">{daily.description}</p>
               <div className="mt-4 inline-flex items-center gap-2 text-xs font-semibold bg-[#B25A45] rounded-full px-4 py-2">
-                <Play className="h-3.5 w-3.5" /> Play {daily.duration_minutes ? `· ${daily.duration_minutes} min` : ""}
+                <Play className="h-3.5 w-3.5" /> {t("med.play")} {daily.duration_minutes ? `· ${daily.duration_minutes} ${t("med.min")}` : ""}
               </div>
             </div>
             <div className="relative min-h-[140px] hidden sm:block">
@@ -76,10 +77,10 @@ export default function Meditations() {
 
         {/* Tabs */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar mb-3" data-testid="meditation-tabs">
-          {TABS.map((t) => (
-            <button key={t.key} data-testid={`meditation-tab-${t.key}`} onClick={() => setTab(t.key)}
-              className={`shrink-0 pill !py-2 !px-4 !text-[13px] ${tab === t.key ? "pill-primary" : "pill-ghost"}`}>
-              <t.icon className="h-3.5 w-3.5" /> {t.label}
+          {TABS.map((tb) => (
+            <button key={tb.key} data-testid={`meditation-tab-${tb.key}`} onClick={() => setTab(tb.key)}
+              className={`shrink-0 pill !py-2 !px-4 !text-[13px] ${tab === tb.key ? "pill-primary" : "pill-ghost"}`}>
+              <tb.icon className="h-3.5 w-3.5" /> {tb.label}
             </button>
           ))}
         </div>
@@ -87,7 +88,7 @@ export default function Meditations() {
         {/* Search + filters */}
         <div className="relative mb-3">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9AA096]" />
-          <input data-testid="meditation-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…"
+          <input data-testid="meditation-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("med.search")}
             className="w-full rounded-full border border-[#E5E6DF] bg-white pl-11 pr-10 py-3 text-[15px] focus:outline-none focus:border-[#B25A45]" />
           {q && <button onClick={() => setQ("")} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9AA096]"><X className="h-4 w-4" /></button>}
         </div>
@@ -104,7 +105,7 @@ export default function Meditations() {
         </div>
 
         {rows === null ? <Spinner /> : list.length === 0 ? (
-          <div data-testid="meditation-empty" className="text-center py-16 text-[#6B7269] text-sm">Nothing matches yet.</div>
+          <div data-testid="meditation-empty" className="text-center py-16 text-[#6B7269] text-sm">{t("med.empty")}</div>
         ) : (
           <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" data-testid="meditation-grid">
             {list.map((m) => (
@@ -117,7 +118,7 @@ export default function Meditations() {
                     <span className="absolute top-2 left-2 text-[9px] uppercase tracking-widest font-bold bg-white/95 text-[#B25A45] rounded-full px-2 py-0.5 capitalize">{m.kind === "nidra" ? "Yoga Nidra" : m.kind}</span>
                     <div className="absolute bottom-2 left-3 right-3 text-white">
                       <div className="text-[13px] font-semibold leading-tight clamp-2">{m.title}</div>
-                      {m.duration_minutes && <div className="text-[10px] text-white/80 mt-0.5 inline-flex items-center gap-0.5"><Clock className="h-2.5 w-2.5" />{m.duration_minutes} min</div>}
+                      {m.duration_minutes && <div className="text-[10px] text-white/80 mt-0.5 inline-flex items-center gap-0.5"><Clock className="h-2.5 w-2.5" />{m.duration_minutes} {t("med.min")}</div>}
                     </div>
                   </div>
                 </button>
@@ -133,6 +134,7 @@ export default function Meditations() {
 }
 
 function MeditationPlayer({ m, onClose }) {
+  const { t } = useTranslation();
   const yid = m.youtube_id;
   const embed = yid ? `https://www.youtube.com/embed/${yid}?rel=0&modestbranding=1&autoplay=1` : null;
   return (
@@ -152,13 +154,13 @@ function MeditationPlayer({ m, onClose }) {
         </div>
         <div className="p-6 space-y-4">
           <div>
-            <div className="eyebrow mb-1 capitalize">{m.kind === "nidra" ? "Yoga Nidra" : m.kind}{m.duration_minutes ? ` · ${m.duration_minutes} min` : ""}</div>
+            <div className="eyebrow mb-1 capitalize">{m.kind === "nidra" ? "Yoga Nidra" : m.kind}{m.duration_minutes ? ` · ${m.duration_minutes} ${t("med.min")}` : ""}</div>
             <h2 className="serif text-3xl leading-tight">{m.title}</h2>
           </div>
           {m.description && <p className="text-[15px] text-[#545E56] leading-relaxed">{m.description}</p>}
           {m.media_kind === "audio" && m.audio_url && (
             <audio data-testid="meditation-audio" controls autoPlay src={m.audio_url} className="w-full">
-              Your browser does not support audio playback.
+              {t("med.audio_unsupported")}
             </audio>
           )}
           {m.focus_areas?.length > 0 && (

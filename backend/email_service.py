@@ -241,3 +241,31 @@ async def send_payment_receipt(to: str, description: str, amount: float, currenc
     )
     html = _wrap("Payment received.", body)
     return await send_email(to, f"Your Tony Yoga receipt — {amt}", html, f"Payment received: {description} — {amt}")
+
+
+async def send_quiz_result(to: str, program: Optional[dict], membership: Optional[dict],
+                           reasons: list, program_url: Optional[str] = None,
+                           signup_url: Optional[str] = None) -> bool:
+    """Email a visitor their Find Your Path result and gently invite them to sign up."""
+    parts = ["Here's the path we mapped for you from your answers:"]
+    if program:
+        parts.append(
+            f"<br/><br/><strong>Your program:</strong> {program.get('title')}"
+            + (f" <span style='color:#839682'>· {program.get('level')}</span>" if program.get('level') else "")
+        )
+    if membership:
+        name = membership.get("name") or "membership"
+        price = membership.get("price")
+        cur = (membership.get("currency") or "usd").upper()
+        sym = "€" if cur == "EUR" else "$"
+        price_str = f" — {sym}{int(price)}/{membership.get('billing_cycle', 'month')}" if price is not None else ""
+        parts.append(f"<br/><strong>Best membership:</strong> {name}{price_str}")
+    if reasons:
+        parts.append("<br/><br/><span style='color:#839682'>Why:</span><ul style='margin:8px 0;padding-left:18px;color:#545E56;'>"
+                     + "".join(f"<li style='margin:4px 0;'>{r}</li>" for r in reasons) + "</ul>")
+    parts.append("<br/>Create your free account to save this plan and start practising whenever you're ready.")
+    body = "".join(parts)
+    html = _wrap("Your path is ready.", body,
+                 "Create your free account" if signup_url else None, signup_url)
+    text = "Your Find Your Path result — " + (program.get("title") if program else "your plan")
+    return await send_email(to, "Your Find Your Path result · Tony Yoga", html, text)

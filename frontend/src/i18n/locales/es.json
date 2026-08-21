@@ -282,5 +282,18 @@
   "disc.result": "resultado",
   "disc.results": "resultados",
   "disc.program": "Programa",
-  "disc.class": "Clase"
+  "disc.class": "Clase",
+  "med.eyebrow": "Calma y respiración",
+  "med.title": "Meditación y Respiración",
+  "med.intro": "Meditaciones guiadas, respiración consciente y yoga nidra para calmar la mente, relajar el sistema nervioso y descansar profundamente.",
+  "med.daily": "Meditación del día",
+  "med.play": "Reproducir",
+  "med.min": "min",
+  "med.tab_all": "Todo",
+  "med.tab_meditation": "Meditación",
+  "med.tab_breathwork": "Respiración",
+  "med.tab_nidra": "Yoga Nidra",
+  "med.search": "Buscar…",
+  "med.empty": "Nada coincide todavía.",
+  "med.audio_unsupported": "Tu navegador no admite la reproducción de audio."
 }

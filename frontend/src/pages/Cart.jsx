@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
 import PaymentButtons from "@/components/PaymentButtons";
+import CreditNudge from "@/components/CreditNudge";
 
 export default function Cart() {
   const { items, subtotal, promo, discount, total, updateQty, remove } = useCart();
@@ -116,6 +117,7 @@ export default function Cart() {
             <button onClick={() => setStep("shipping")} data-testid="cart-continue" className="pill pill-primary w-full">
               <ShoppingBag className="h-4 w-4" /> Continue to shipping
             </button>
+            <CreditNudge testId="cart-credit-nudge" />
           </>
         )}
 

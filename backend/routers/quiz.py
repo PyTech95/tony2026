@@ -6,10 +6,11 @@ changes. Anonymous-friendly; if the caller is logged in we persist their goals
 and level to the profile.
 """
 from typing import List, Optional
-from fastapi import Request
+import os
+from fastapi import Request, HTTPException
 from pydantic import BaseModel
 
-from core import api, db, now_utc, get_optional_user
+from core import api, db, gen_id, now_utc, get_optional_user
 
 LEVEL_RANK = {"beginner": 0, "intermediate": 1, "advanced": 2}
 
@@ -41,9 +42,8 @@ def _slim_plan(p: dict) -> dict:
     }
 
 
-@api.post("/quiz/recommend")
-async def quiz_recommend(payload: QuizAnswers, request: Request):
-    user = await get_optional_user(request)
+async def _compute_recommendation(payload: "QuizAnswers"):
+    """Score live programs + membership plans against the answers. Returns (program, plan, reasons)."""
     programs = await db.programs.find(
         {"style": {"$regex": "^Core", "$options": "i"}}, {"_id": 0}
     ).to_list(50)
@@ -54,8 +54,6 @@ async def quiz_recommend(payload: QuizAnswers, request: Request):
     want_rank = LEVEL_RANK.get(want_level, 0)
     goal = (payload.goal or "").lower()
     focus = (payload.focus or "").lower()
-
-    # Goal → preferred program style keyword.
     goal_style = {
         "foundations": "core 26", "calm": "core 26",
         "fitness": "core 40", "flexibility": "core 40",
@@ -65,13 +63,12 @@ async def quiz_recommend(payload: QuizAnswers, request: Request):
     def score(p: dict) -> float:
         s = 0.0
         prank = LEVEL_RANK.get((p.get("level") or "beginner").lower(), 0)
-        s += 3.0 - abs(prank - want_rank)  # closeness to their level
+        s += 3.0 - abs(prank - want_rank)
         style = (p.get("style") or p.get("title") or "").lower()
         if goal_style and goal_style in style:
             s += 4.0
         if focus and focus in [f.lower() for f in (p.get("focus_areas") or [])]:
             s += 2.0
-        # Big commitment (many days/long sessions) nudges toward deeper programs.
         if (payload.days_per_week or 0) >= 5 and prank >= 2:
             s += 1.0
         if (payload.minutes or 0) >= 60 and prank >= 1:
@@ -80,7 +77,6 @@ async def quiz_recommend(payload: QuizAnswers, request: Request):
 
     best = max(programs, key=score) if programs else None
 
-    # Membership tier from commitment: casual → online_only; regular → online_inperson; heavy → vip.
     plans = await db.membership_plans.find({}, {"_id": 0}).to_list(50)
     dpw = payload.days_per_week or 2
     if dpw >= 5:
@@ -90,8 +86,8 @@ async def quiz_recommend(payload: QuizAnswers, request: Request):
     else:
         tier_order = ["online_only", "online_inperson", "vip"]
     plan = None
-    for t in tier_order:
-        plan = next((pl for pl in plans if (pl.get("tier") or "") == t), None)
+    for tier in tier_order:
+        plan = next((pl for pl in plans if (pl.get("tier") or "") == tier), None)
         if plan:
             break
     plan = plan or (plans[0] if plans else None)
@@ -108,23 +104,75 @@ async def quiz_recommend(payload: QuizAnswers, request: Request):
             reasons.append("A lighter schedule fits our flexible online membership")
     if focus:
         reasons.append(f"Focused on {focus} — we'll surface matching classes")
+    return best, plan, reasons
 
+
+@api.post("/quiz/recommend")
+async def quiz_recommend(payload: QuizAnswers, request: Request):
+    user = await get_optional_user(request)
+    program, plan, reasons = await _compute_recommendation(payload)
     if user:
         upd = {}
         if payload.level:
             upd["level"] = payload.level
+        goal = (payload.goal or "").lower()
         if goal:
-            upd["goals"] = [goal] + ([focus] if focus else [])
+            upd["goals"] = [goal] + ([payload.focus] if payload.focus else [])
         upd["quiz_result"] = {
-            "program_id": best.get("id") if best else None,
+            "program_id": program.get("id") if program else None,
             "plan_id": plan.get("id") if plan else None,
             "answers": payload.model_dump(),
             "at": now_utc().isoformat(),
         }
         await db.users.update_one({"id": user["id"]}, {"$set": upd})
-
     return {
-        "program": _slim_program(best) if best else None,
+        "program": _slim_program(program) if program else None,
         "membership": _slim_plan(plan) if plan else None,
         "reasons": reasons,
     }
+
+
+class QuizLead(BaseModel):
+    email: str
+    name: Optional[str] = None
+    answers: QuizAnswers
+    origin_url: Optional[str] = None
+
+
+@api.post("/quiz/lead")
+async def quiz_lead(payload: QuizLead, request: Request):
+    """Capture a first-time visitor's email + email them their Find Your Path result."""
+    email = (payload.email or "").strip().lower()
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(400, "Please enter a valid email.")
+    program, plan, reasons = await _compute_recommendation(payload.answers)
+    origin = (payload.origin_url or os.environ.get("FRONTEND_URL", "")).rstrip("/")
+    program_url = f"{origin}/programs/{program['id']}" if (origin and program) else None
+    signup_url = f"{origin}/register?email={email}" if origin else None
+
+    existing_user = await db.users.find_one({"email": email}, {"_id": 0, "id": 1})
+    lead = {
+        "id": gen_id(),
+        "email": email,
+        "name": payload.name,
+        "answers": payload.answers.model_dump(),
+        "program_id": program.get("id") if program else None,
+        "plan_id": plan.get("id") if plan else None,
+        "is_member": bool(existing_user),
+        "created_at": now_utc().isoformat(),
+    }
+    await db.quiz_leads.insert_one(lead)
+
+    sent = False
+    try:
+        from email_service import send_quiz_result
+        sent = await send_quiz_result(
+            email,
+            _slim_program(program) if program else None,
+            _slim_plan(plan) if plan else None,
+            reasons, program_url, signup_url,
+        )
+    except Exception:
+        sent = False
+    await db.quiz_leads.update_one({"id": lead["id"]}, {"$set": {"emailed": sent}})
+    return {"ok": True, "emailed": sent, "already_member": bool(existing_user)}
