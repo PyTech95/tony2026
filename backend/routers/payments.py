@@ -139,6 +139,93 @@ async def _resolve_price(item_type: str, item_id: str, quantity: int):
     raise HTTPException(400, "Invalid item type")
 
 
+async def _reserve_store_credit(user_id: str, amount: float) -> float:
+    """Atomically reserve up to `amount` of the user's store credit. Returns the
+    amount actually reserved (0 if none available). Credit is treated 1:1 as money."""
+    u = await db.users.find_one({"id": user_id}, {"store_credit": 1})
+    bal = round(float((u or {}).get("store_credit") or 0), 2)
+    applied = round(min(bal, float(amount)), 2)
+    if applied <= 0:
+        return 0.0
+    r = await db.users.update_one(
+        {"id": user_id, "store_credit": {"$gte": applied}},
+        {"$inc": {"store_credit": -applied}},
+    )
+    return applied if r.modified_count else 0.0
+
+
+async def _release_store_credit(user_id: str, amount: float):
+    if amount and amount > 0:
+        await db.users.update_one({"id": user_id}, {"$inc": {"store_credit": round(float(amount), 2)}})
+
+
+async def release_stranded_credit_tick():
+    """Return reserved store credit for unpaid checkouts abandoned >45 min ago
+    (safety net for users who close the Stripe/PayPal page without cancelling)."""
+    from datetime import timedelta
+    cutoff = (now_utc() - timedelta(minutes=45)).isoformat()
+    cursor = db.payment_transactions.find({
+        "payment_status": "initiated",
+        "credit_applied": {"$gt": 0},
+        "credit_released": {"$ne": True},
+        "created_at": {"$lt": cutoff},
+    })
+    async for txn in cursor:
+        await _release_store_credit(txn.get("user_id"), txn.get("credit_applied") or 0)
+        await db.payment_transactions.update_one(
+            {"id": txn["id"]}, {"$set": {"credit_released": True, "status": "expired"}}
+        )
+
+
+def _credit_eligible(item_type: str) -> bool:
+    # Store credit applies to one-time purchases (not real Stripe subscriptions).
+    return item_type in (
+        "membership", "program", "product", "cart", "bundle",
+        "workshop_deposit", "workshop_balance", "drop_in", "class_pack", "private_session",
+    )
+
+
+async def _fulfill_credit_only(*, user: dict, item_type: str, item_id: str, quantity: int,
+                               currency: str, credit_applied: float, meta: dict):
+    """When store credit fully covers the price, complete the purchase with no gateway."""
+    txn = {
+        "id": gen_id(), "session_id": f"credit_{gen_id()}",
+        "provider": "credit",
+        "user_id": user["id"], "user_email": user["email"],
+        "amount": round(credit_applied, 2), "currency": currency,
+        "credit_applied": round(credit_applied, 2),
+        "item_type": item_type, "item_id": item_id,
+        "quantity": quantity,
+        "metadata": {"user_id": user["id"], "user_email": user["email"],
+                     "item_type": item_type, "item_id": item_id,
+                     "quantity": str(quantity), **(meta or {})},
+        "payment_status": "paid", "status": "complete", "mode": "credit",
+        "created_at": now_utc().isoformat(), "completed_at": now_utc().isoformat(),
+    }
+    await db.payment_transactions.insert_one(txn)
+    await _fulfill_payment(txn)
+    return txn
+
+
+@api.post("/checkout/credit-release")
+async def release_credit(request: Request, user: dict = Depends(get_current_user)):
+    """Refund reserved store credit for an abandoned/cancelled unpaid checkout."""
+    body = await request.json()
+    session_id = (body or {}).get("session_id")
+    if not session_id:
+        raise HTTPException(400, "session_id required")
+    txn = await db.payment_transactions.find_one({"session_id": session_id, "user_id": user["id"]})
+    if not txn:
+        raise HTTPException(404, "Transaction not found")
+    applied = round(float(txn.get("credit_applied") or 0), 2)
+    if txn.get("payment_status") == "paid" or txn.get("credit_released") or applied <= 0:
+        return {"released": 0.0}
+    await _release_store_credit(user["id"], applied)
+    await db.payment_transactions.update_one({"session_id": session_id}, {"$set": {"credit_released": True}})
+    fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "store_credit": 1})
+    return {"released": applied, "store_credit": round((fresh or {}).get("store_credit", 0) or 0, 2)}
+
+
 @api.post("/checkout/session")
 async def create_checkout(payload: CheckoutRequest, request: Request, user: dict = Depends(get_current_user)):
     # Memberships CAN go through Stripe Subscriptions (with trial) when the admin
@@ -172,22 +259,40 @@ async def create_checkout(payload: CheckoutRequest, request: Request, user: dict
     host_url = str(request.base_url)
     stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=f"{host_url}api/webhook/stripe")
     amount, currency, meta = await _resolve_price(payload.item_type, payload.item_id, payload.quantity)
+
+    # Gift-card store credit: reserve and deduct from the amount to charge.
+    credit_applied = 0.0
+    if payload.apply_credit and _credit_eligible(payload.item_type):
+        credit_applied = await _reserve_store_credit(user["id"], float(amount))
+    charge_amount = round(float(amount) - credit_applied, 2)
+    if credit_applied > 0 and charge_amount <= 0.009:
+        # Credit fully covers it — no gateway needed.
+        await _fulfill_credit_only(user=user, item_type=payload.item_type, item_id=payload.item_id,
+                                   quantity=payload.quantity, currency=currency,
+                                   credit_applied=credit_applied, meta=meta)
+        return {"credit_only": True, "credit_applied": credit_applied}
+
     success_url = f"{payload.origin_url}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}"
-    cancel_url = f"{payload.origin_url}/checkout/cancel"
+    cancel_url = f"{payload.origin_url}/checkout/cancel?session_id={{CHECKOUT_SESSION_ID}}"
     metadata = {
         "user_id": user["id"], "user_email": user["email"],
         "item_type": payload.item_type, "item_id": payload.item_id,
         "quantity": str(payload.quantity), **meta, **(payload.metadata or {}),
     }
     req = CheckoutSessionRequest(
-        amount=float(amount), currency=currency,
+        amount=float(charge_amount), currency=currency,
         success_url=success_url, cancel_url=cancel_url, metadata=metadata,
     )
-    session: CheckoutSessionResponse = await stripe_checkout.create_checkout_session(req)
+    try:
+        session: CheckoutSessionResponse = await stripe_checkout.create_checkout_session(req)
+    except Exception:
+        await _release_store_credit(user["id"], credit_applied)
+        raise
     await db.payment_transactions.insert_one({
         "id": gen_id(), "session_id": session.session_id,
         "user_id": user["id"], "user_email": user["email"],
-        "amount": float(amount), "currency": currency,
+        "amount": float(charge_amount), "currency": currency,
+        "credit_applied": credit_applied,
         "item_type": payload.item_type, "item_id": payload.item_id,
         "quantity": payload.quantity, "metadata": metadata,
         "payment_status": "initiated", "status": "open",
@@ -303,6 +408,11 @@ async def _send_receipt(txn: dict):
 
 async def _fulfill_payment(txn: dict):
     item_type = txn["item_type"]; item_id = txn["item_id"]; user_id = txn["user_id"]
+    # Safety: if the abandonment sweeper already refunded this txn's reserved credit
+    # but the gateway payment landed late, re-consume that credit so it isn't double-spent.
+    if txn.get("credit_released") and (txn.get("credit_applied") or 0) > 0:
+        await db.users.update_one({"id": user_id}, {"$inc": {"store_credit": -round(float(txn["credit_applied"]), 2)}})
+        await db.payment_transactions.update_one({"id": txn.get("id")}, {"$set": {"credit_released": False}})
     if item_type == "membership":
         plan = await db.membership_plans.find_one({"id": item_id})
         if not plan: return
@@ -395,6 +505,12 @@ async def _fulfill_payment(txn: dict):
                     {"id": order_id},
                     {"$set": {"status": "paid", "paid_at": now_utc().isoformat()}},
                 )
+                # Part B: push paid cart order to Printful for POD fulfillment (best-effort).
+                try:
+                    from routers.printful import try_auto_fulfill_order
+                    await try_auto_fulfill_order(order_id)
+                except Exception as e:
+                    logger.warning(f"printful auto-fulfill hook failed for {order_id}: {e}")
     elif item_type == "workshop_deposit":
         reservation_id = txn.get("metadata", {}).get("reservation_id") or txn.get("item_id")
         if reservation_id:

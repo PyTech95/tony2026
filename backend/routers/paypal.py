@@ -83,10 +83,29 @@ async def _paypal_access_token() -> str:
 @api.post("/paypal/create-order")
 async def paypal_create_order(payload: CheckoutRequest, user: dict = Depends(get_current_user)):
     """Create a PayPal Orders v2 order and return the approve URL for redirect."""
+    from routers.payments import (
+        _reserve_store_credit, _release_store_credit, _credit_eligible, _fulfill_credit_only,
+    )
     amount, currency, meta = await _resolve_price(payload.item_type, payload.item_id, payload.quantity)
-    value = f"{float(amount):.2f}"
 
-    token = await _paypal_access_token()
+    # Gift-card store credit: reserve and deduct from the amount to charge.
+    credit_applied = 0.0
+    if getattr(payload, "apply_credit", False) and _credit_eligible(payload.item_type):
+        credit_applied = await _reserve_store_credit(user["id"], float(amount))
+    charge_amount = round(float(amount) - credit_applied, 2)
+    if credit_applied > 0 and charge_amount <= 0.009:
+        await _fulfill_credit_only(user=user, item_type=payload.item_type, item_id=payload.item_id,
+                                   quantity=payload.quantity, currency=currency,
+                                   credit_applied=credit_applied, meta=meta)
+        return {"credit_only": True, "credit_applied": credit_applied}
+
+    value = f"{float(charge_amount):.2f}"
+
+    try:
+        token = await _paypal_access_token()
+    except Exception:
+        await _release_store_credit(user["id"], credit_applied)
+        raise
     order_body: Dict[str, Any] = {
         "intent": "CAPTURE",
         "purchase_units": [{
@@ -109,11 +128,13 @@ async def paypal_create_order(payload: CheckoutRequest, user: dict = Depends(get
             json=order_body,
         )
     if r.status_code not in (200, 201):
+        await _release_store_credit(user["id"], credit_applied)
         logger.error(f"PayPal order create failed: {r.status_code} {r.text}")
         raise HTTPException(502, "PayPal order creation failed")
     data = r.json()
     approve_url = next((l["href"] for l in data.get("links", []) if l.get("rel") == "approve"), None)
     if not approve_url:
+        await _release_store_credit(user["id"], credit_applied)
         raise HTTPException(502, "PayPal did not return an approve URL")
 
     # Record in payment_transactions so we can fulfil on capture and via webhook.
@@ -126,7 +147,8 @@ async def paypal_create_order(payload: CheckoutRequest, user: dict = Depends(get
         "id": gen_id(), "session_id": data["id"],  # reuse session_id column for order_id
         "provider": "paypal",
         "user_id": user["id"], "user_email": user["email"],
-        "amount": float(amount), "currency": currency.upper(),
+        "amount": float(charge_amount), "currency": currency.upper(),
+        "credit_applied": credit_applied,
         "item_type": payload.item_type, "item_id": payload.item_id,
         "quantity": payload.quantity, "metadata": metadata,
         "payment_status": "initiated", "status": "open",

@@ -372,6 +372,9 @@ function DiscoverStrip() {
             <Link to="/meditations" data-testid="home-meditations-cta" className="pill pill-ghost !bg-white/10 !text-white !border-white/20 hover:!bg-white/20">
               <Moon className="h-4 w-4" /> Meditation &amp; Breathwork
             </Link>
+            <Link to="/find-your-path" data-testid="home-quiz-cta" className="pill pill-ghost !bg-white/10 !text-white !border-white/20 hover:!bg-white/20">
+              <Compass className="h-4 w-4" /> Find your path
+            </Link>
           </div>
         </div>
         <div className="hidden lg:grid grid-cols-2 gap-3">

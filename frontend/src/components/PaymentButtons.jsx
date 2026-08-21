@@ -1,20 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CreditCard, ShieldCheck } from "lucide-react";
+import { CreditCard, ShieldCheck, Gift } from "lucide-react";
 import { api } from "@/lib/api";
 import { usePaymentProviders } from "@/lib/providers";
 import { useAuth } from "@/lib/auth";
 
 /**
- * Twin checkout buttons — Stripe (primary) + optional PayPal.
+ * Twin checkout buttons — PayPal (primary) + Stripe card, with optional
+ * gift-card store-credit application.
  *
  * Props:
- *   itemType: "membership" | "cart" | "workshop_deposit" | "workshop_balance" | "drop_in" | "class_pack" | "program" | "product"
- *   itemId:   The id used by the backend to resolve price
- *   stripeLabel: Text for the Stripe button. Default: "Pay with card"
- *   onBeforeCheckout: async () => optional — return false to abort (e.g. cart validation)
- *   size: "md" | "lg"
- *   variant: "vertical" | "horizontal"
+ *   itemType, itemId, stripeLabel, onBeforeCheckout, disabled, size, variant, testIdPrefix
+ *   allowCredit: when true (default), shows an "apply my credit" toggle for logged-in users
  */
 export default function PaymentButtons({
   itemType,
@@ -25,57 +22,59 @@ export default function PaymentButtons({
   size = "md",
   variant = "vertical",
   testIdPrefix = "pay",
+  allowCredit = true,
 }) {
   const { paypal: paypalAvailable } = usePaymentProviders();
   const { user } = useAuth();
   const isStaff = user?.role === "admin" || user?.role === "instructor";
   const [busy, setBusy] = useState(null); // "stripe" | "paypal" | null
+  const [credit, setCredit] = useState(0);
+  const [useCredit, setUseCredit] = useState(true);
 
-  const startStripe = async () => {
-    if (disabled || busy) return;
-    if (onBeforeCheckout) {
-      const cont = await onBeforeCheckout();
-      if (cont === false) return;
+  useEffect(() => {
+    if (!user || isStaff || !allowCredit) { setCredit(0); return; }
+    api.get("/me/store-credit")
+      .then(({ data }) => setCredit(Number(data?.store_credit || 0)))
+      .catch(() => setCredit(0));
+  }, [user, isStaff, allowCredit]);
+
+  const applyCredit = allowCredit && credit > 0 && useCredit;
+
+  const handleCreditOnly = (data) => {
+    if (data?.credit_only) {
+      toast.success("Paid with your gift-card credit.");
+      window.location.href = `${window.location.origin}/checkout/success?credit=1`;
+      return true;
     }
-    setBusy("stripe");
-    try {
-      const { data } = await api.post("/checkout/session", {
-        item_type: itemType,
-        item_id: itemId,
-        origin_url: window.location.origin,
-      });
-      if (data?.url) window.location.href = data.url;
-      else toast.error("Could not start Stripe checkout");
-    } catch (e) {
-      toast.error(e?.response?.data?.detail || "Checkout failed");
-    } finally { setBusy(null); }
+    return false;
   };
 
-  const startPaypal = async () => {
+  const start = async (provider) => {
     if (disabled || busy) return;
     if (onBeforeCheckout) {
       const cont = await onBeforeCheckout();
       if (cont === false) return;
     }
-    setBusy("paypal");
+    setBusy(provider);
     try {
-      const { data } = await api.post("/paypal/create-order", {
+      const path = provider === "paypal" ? "/paypal/create-order" : "/checkout/session";
+      const { data } = await api.post(path, {
         item_type: itemType,
         item_id: itemId,
         origin_url: window.location.origin,
+        apply_credit: applyCredit,
       });
+      if (handleCreditOnly(data)) return;
       if (data?.url) window.location.href = data.url;
-      else toast.error("Could not start PayPal checkout");
+      else toast.error(`Could not start ${provider === "paypal" ? "PayPal" : "Stripe"} checkout`);
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "PayPal not available yet");
+      toast.error(e?.response?.data?.detail || (provider === "paypal" ? "PayPal not available yet" : "Checkout failed"));
     } finally { setBusy(null); }
   };
 
   const pillPad = size === "lg" ? "!py-3.5" : "";
   const wrap = variant === "horizontal" ? "flex gap-2" : "space-y-2";
 
-  // Staff (admin/instructor) are previewing the app, not buying — show a note
-  // instead of live checkout buttons so they don't accidentally start a payment.
   if (isStaff) {
     return (
       <div data-testid={`${testIdPrefix}-staff-note`} className="flex items-center gap-2 rounded-2xl bg-[#F2F2EC] border border-[#E5E6DF] px-4 py-3 text-[13px] text-[#6B7269]">
@@ -85,28 +84,47 @@ export default function PaymentButtons({
     );
   }
 
-  // PayPal is the primary method sitewide. When configured it renders first as the
-  // prominent button; the card (Stripe) button is kept as a secondary/backup option.
   return (
-    <div className={wrap} data-testid={`${testIdPrefix}-buttons`}>
-      {paypalAvailable && (
-        <button
-          onClick={startPaypal}
-          disabled={disabled || !!busy}
-          data-testid={`${testIdPrefix}-paypal`}
-          className={`pill w-full ${pillPad} !bg-[#FFC439] !text-[#003087] hover:!bg-[#F5B800]`}
+    <div className="space-y-2.5" data-testid={`${testIdPrefix}-wrapper`}>
+      {credit > 0 && allowCredit && (
+        <label
+          data-testid={`${testIdPrefix}-credit-toggle`}
+          className="flex items-center gap-3 rounded-2xl border border-[#E0D3B8] bg-[#FBF6EC] px-4 py-3 cursor-pointer"
         >
-          <span className="font-bold italic">PayPal</span> {busy === "paypal" ? "· Redirecting…" : "· Pay securely"}
-        </button>
+          <input
+            type="checkbox"
+            checked={useCredit}
+            onChange={(e) => setUseCredit(e.target.checked)}
+            className="h-4 w-4 accent-[#B25A45]"
+            data-testid={`${testIdPrefix}-credit-checkbox`}
+          />
+          <Gift className="h-4 w-4 text-[#B25A45] shrink-0" />
+          <span className="text-[13px] text-[#5C5346]">
+            Apply my gift-card credit <span className="font-semibold text-[#1C221F]">${credit.toFixed(2)}</span>
+          </span>
+        </label>
       )}
-      <button
-        onClick={startStripe}
-        disabled={disabled || !!busy}
-        data-testid={`${testIdPrefix}-stripe`}
-        className={`pill w-full ${pillPad} ${paypalAvailable ? "pill-ghost" : "pill-primary"}`}
-      >
-        <CreditCard className="h-4 w-4" /> {busy === "stripe" ? "Redirecting…" : (paypalAvailable ? "Or pay with card" : stripeLabel)}
-      </button>
+
+      <div className={wrap} data-testid={`${testIdPrefix}-buttons`}>
+        {paypalAvailable && (
+          <button
+            onClick={() => start("paypal")}
+            disabled={disabled || !!busy}
+            data-testid={`${testIdPrefix}-paypal`}
+            className={`pill w-full ${pillPad} !bg-[#FFC439] !text-[#003087] hover:!bg-[#F5B800]`}
+          >
+            <span className="font-bold italic">PayPal</span> {busy === "paypal" ? "· Redirecting…" : "· Pay securely"}
+          </button>
+        )}
+        <button
+          onClick={() => start("stripe")}
+          disabled={disabled || !!busy}
+          data-testid={`${testIdPrefix}-stripe`}
+          className={`pill w-full ${pillPad} ${paypalAvailable ? "pill-ghost" : "pill-primary"}`}
+        >
+          <CreditCard className="h-4 w-4" /> {busy === "stripe" ? "Redirecting…" : (paypalAvailable ? "Or pay with card" : stripeLabel)}
+        </button>
+      </div>
     </div>
   );
 }

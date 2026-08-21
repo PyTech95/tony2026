@@ -129,6 +129,8 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "instagram_access_token": "",         # long-lived IG User token (secret)
     "instagram_last_sync": "",            # ISO timestamp of last successful sync
     "instagram_last_error": "",           # last sync error (for admin visibility)
+    # ---- Printful fulfillment (Part B) ----
+    "printful_fulfill_enabled": True,     # auto-submit paid Printful orders (only fires on live payments)
     # ---- AI assistant (homepage chat + voice) ----
     "assistant_enabled": True,
     "assistant_greeting": "Hi, I'm Tony's assistant. How can I help you find the right yoga path today?",

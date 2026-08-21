@@ -270,6 +270,28 @@ Still-open (spec 'future'/optional, not built): leaderboard admin toggle UI, gif
 - FIX (printful.py): `_normalize` now PREFERS Printful CDN images (variant files[].preview_url + product.image) and only falls back to the platform thumbnail. `_img_url()` rewrites the dead `tonyoga.com`/`www.tonyoga.com` host -> `tonyoga.online` (same media still hosted there, confirmed NOT hotlink-protected). Sync now also refreshes `images` on existing products (added to pf_owned $set).
 - VERIFIED (browser eval, all sampled imgs loaded:true): physical products use files.cdn.printful.com; subscriptions/services use tonyoga.online; admin Shop pane thumbnails all render.
 
+## Three P0 features (2026-08-21) — Printful Part B, Find Your Path quiz, Gift cards at checkout
+User choices: Printful auto-confirm BUT only on LIVE payments (skip in sandbox); quiz defaults; credit applies EVERYWHERE.
+
+### Printful Fulfillment (Part B) — `routers/printful.py`
+- `submit_printful_order(order, confirm)` POSTs `/orders` (no external_id — a UUID conflicts with WooCommerce's ID space; recipient built from order.shipping_address, ISO2 country map). Items resolved via `_resolve_items` mapping order lines → sync_variant_id; uses each product's own `printful_store_id` (recorded on sync) so it works across stores.
+- `try_auto_fulfill_order(order_id)` runs from payments `_fulfill_payment` (cart-paid hook). Auto-confirms ONLY when `_is_live_payments()` true; else writes `printful_status='skipped_test_mode'`. Kill-switch setting `printful_fulfill_enabled` (default true).
+- Endpoints: POST `/admin/orders/{id}/fulfill?confirm=` (draft/confirm), GET `/admin/orders/{id}/fulfillment` (pull tracking), POST `/webhook/printful` (package_shipped → order tracking). Admin UI: new `admin/OrdersPane.jsx` ("Orders & Fulfillment" tab) with Send draft / Fulfill now (window.confirm guarded) / Refresh tracking.
+- VERIFIED: draft order #172933154/#2e049ac8 created against real Printful (no charge). confirm=true never called.
+
+### Find Your Path quiz — `routers/quiz.py` + `pages/FindYourPath.jsx`
+- POST `/quiz/recommend` scores live programs (Core*) by level/goal/focus/commitment → program + membership tier (dpw≥5→vip, ≥3→online_inperson, else online_only) + reasons; persists to user profile if logged in. Route `/find-your-path` (+ `/quiz`). Homepage `home-quiz-cta`. Result card shows program + membership WITH price.
+- VERIFIED: beginner/foundations/2d→Core 26+/online_only; advanced/mastery/6d→Core 84/vip; fitness/intermediate/4d→Core 40/online_inperson.
+
+### Gift cards at checkout — `routers/payments.py` + `paypal.py` + `PaymentButtons.jsx`
+- CheckoutRequest.apply_credit. `_reserve_store_credit` (atomic $gte, no negative), `_release_store_credit`, `_fulfill_credit_only` (full coverage → no gateway, returns {credit_only:true}), POST `/checkout/credit-release` (cancel/abandon refund, user-scoped, idempotent). Applied in both Stripe create_checkout and PayPal create-order for one-time items (NOT real subscriptions). credit treated 1:1 across currencies (known simplification).
+- Stranded-credit fixes: Stripe cancel_url carries `?session_id={CHECKOUT_SESSION_ID}`; `CheckoutCancel` auto-calls credit-release; 45-min `release_stranded_credit_tick` sweeper (in server reminder loop); `_fulfill_payment` re-consumes credit if a payment lands after a sweep-release (race guard).
+- PaymentButtons: `pay-credit-toggle/checkbox` shows balance; credit_only → redirect `/checkout/success?credit=1`.
+- VERIFIED iteration_47 + iteration_48 (100%): credit-only (Stripe+PayPal), partial reserve+release, atomic under 6 concurrent, sweeper, cancel-page restore banner, fulfill-now confirm guard, quiz price, redesigned Printful admin panel (no span-in-option warning).
+
+### Admin Shop & Printful redesign
+- `ProductsPane.jsx` Printful section is now a prominent dark panel: Step 1 "Select your store" dropdown (defaults to fullest store), Step 2 "Begin sync" button, onboarding tip when 0 synced, synced-count badge, auto-fulfill toggle. Option labels are single strings (fixed React <option> warning).
+
 
 - DISCOVER: backend GET /api/discover (unified programs + on-demand classes, filters: type/level/style/focus/language/duration bucket/teacher/q) + GET /api/discover/facets (DATA-DRIVEN — only returns focus areas/languages actually present, so no dead chips). Program model gained focus_areas/intensity/language; backfill tags all 3 programs + 69 videos (rotating focus so all 8 areas have content). New public page /app/frontend/src/pages/Discover.jsx (/discover route): search + type tabs + collapsible filter panel + responsive card grid → links to /programs/:id or /library/:id.
 - HOMEPAGE: Marketing.jsx new DiscoverStrip ("Explore the library" CTA → /discover) + ComingSoon strip (Yoga Nidra, Breathwork, Private sessions, Teacher training, Challenges — teaser cards, no dead links). (Renamed Meditations→Yoga Nidra to avoid clash with existing Meditation-style classes.)

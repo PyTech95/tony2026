@@ -59,44 +59,105 @@ function ProductsPane() {
     try { await api.delete(`/admin/products/${p.id}`); load(); } catch { toast.error("Failed"); }
   };
 
+  const selectedStore = (stores || []).find((s) => String(s.id) === String(storeId));
+  const notSynced = status?.configured && status?.synced_products === 0;
+
   return (
     <div className="space-y-4" data-testid="products-pane">
-      {/* Printful sync card */}
-      <div className="rounded-2xl bg-white border border-[#E5E6DF] p-4" data-testid="printful-card">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+      {/* Printful connect + sync panel */}
+      <div className="rounded-3xl bg-gradient-to-br from-[#1C221F] to-[#2A302B] text-[#FAFAF7] p-5 sm:p-6" data-testid="printful-card">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <div className="eyebrow flex items-center gap-2"><ShoppingBag className="h-3.5 w-3.5 text-[#B25A45]" /> Printful</div>
-            <div className="text-sm text-[#545E56] mt-1">
-              {status === null ? "…" : status.configured ? (
-                <>Connected · store <span className="font-mono text-xs">{status.store_id}</span> · {status.synced_products} synced
-                  {status.last_sync && <> · last {new Date(status.last_sync).toLocaleString()}</>}</>
-              ) : "Not configured — add PRINTFUL_TOKEN in backend settings."}
-            </div>
+            <div className="eyebrow !text-[#E0A38F] flex items-center gap-2"><ShoppingBag className="h-3.5 w-3.5" /> Printful print-on-demand</div>
+            <h3 className="serif text-2xl mt-1">Import your store products</h3>
+            <p className="text-[13px] text-[#B7BEB4] mt-1 max-w-xl">
+              {status === null ? "Loading…" : status.configured
+                ? "Your Printful account is connected. Pick the store your products live in, then Begin sync — they'll appear below, ready to price and publish."
+                : "Not configured — add PRINTFUL_TOKEN in backend settings."}
+            </p>
           </div>
-          <button onClick={sync} disabled={syncing || !status?.configured} data-testid="printful-sync-btn" className="pill pill-primary">
-            <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} /> {syncing ? "Syncing…" : "Sync from Printful"}
-          </button>
+          {status?.configured && (
+            <span className="text-[11px] rounded-full bg-white/10 px-3 py-1.5 font-semibold" data-testid="printful-synced-count">
+              {status.synced_products} product{status.synced_products === 1 ? "" : "s"} synced
+            </span>
+          )}
         </div>
+
         {status?.configured && stores && stores.length > 0 && (
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
-            <label className="text-xs font-semibold text-[#545E56]">Store</label>
+          <div className="mt-5 rounded-2xl bg-white/5 border border-white/10 p-4">
+            {/* Step 1 — Select store */}
+            <label className="text-[11px] uppercase tracking-widest font-bold text-[#E0A38F] flex items-center gap-2">
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#B25A45] text-white text-[10px]">1</span>
+              Select your store
+            </label>
             <select
               value={storeId}
               onChange={(e) => setStoreId(e.target.value)}
               data-testid="printful-store-select"
-              className="rounded-lg border border-[#E5E6DF] bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B25A45]"
+              className="mt-2 w-full rounded-xl border border-white/15 bg-[#12160F] text-[#FAFAF7] px-3.5 py-3 text-sm focus:outline-none focus:border-[#B25A45]"
             >
               {stores.map((s) => (
-                <option key={s.id} value={String(s.id)}>
-                  {s.name} · {s.type}{s.product_count != null ? ` · ${s.product_count} products` : ""}
+                <option key={s.id} value={String(s.id)} className="bg-[#12160F]">
+                  {`${s.name} — ${s.type}${s.product_count != null ? ` (${s.product_count} products)` : ""}`}
                 </option>
               ))}
             </select>
-            <span className="text-xs text-[#6B7269]">Pick the store your products live in, then Sync.</span>
+            {selectedStore != null && (
+              <p className="text-[12px] text-[#B7BEB4] mt-1.5">
+                {selectedStore.product_count > 0
+                  ? `“${selectedStore.name}” has ${selectedStore.product_count} products ready to import.`
+                  : `“${selectedStore.name}” is empty — choose the store that shows products.`}
+              </p>
+            )}
+
+            {/* Step 2 — Begin sync */}
+            <div className="mt-4 flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] uppercase tracking-widest font-bold text-[#E0A38F] flex items-center gap-2">
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#B25A45] text-white text-[10px]">2</span>
+                Begin sync
+              </span>
+              <button
+                onClick={sync}
+                disabled={syncing || !status?.configured}
+                data-testid="printful-sync-btn"
+                className="pill !bg-[#B25A45] !text-white hover:!bg-[#9c4c39] ml-auto"
+              >
+                <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} /> {syncing ? "Syncing…" : "Begin sync"}
+              </button>
+            </div>
+            {status.last_sync && (
+              <p className="text-[11px] text-[#8A928A] mt-2">Last synced {new Date(status.last_sync).toLocaleString()}</p>
+            )}
           </div>
         )}
-        {status?.configured && status?.synced_products === 0 && (
-          <p className="text-xs text-[#6B7269] mt-2">Tip: choose the store that shows a product count above (your Squarespace / WooCommerce store), then click Sync.</p>
+
+        {notSynced && (
+          <div className="mt-3 rounded-xl bg-[#B25A45]/15 border border-[#B25A45]/30 px-4 py-3 text-[12px] text-[#F0C9BC]" data-testid="printful-onboarding-tip">
+            Nothing imported yet — pick the store above that shows a product count (your Squarespace / WooCommerce store), then press <b>Begin sync</b>.
+          </div>
+        )}
+
+        {status?.configured && (
+          <label className="mt-4 flex items-center gap-2.5 text-[13px] text-[#B7BEB4] cursor-pointer" data-testid="printful-fulfill-toggle">
+            <input
+              type="checkbox"
+              checked={status.fulfill_enabled !== false}
+              onChange={async (e) => {
+                try {
+                  await api.patch("/admin/settings", { printful_fulfill_enabled: e.target.checked });
+                  loadStatus();
+                  toast.success(e.target.checked ? "Auto-fulfillment on" : "Auto-fulfillment off");
+                } catch { toast.error("Could not update"); }
+              }}
+              className="h-4 w-4 accent-[#B25A45]"
+            />
+            <span>
+              Auto-send paid orders to Printful for printing &amp; shipping
+              <span className="ml-1 text-xs text-[#8A928A]">
+                {status.payments_live ? "· live payments active" : "· test mode — starts once live payments are on"}
+              </span>
+            </span>
+          </label>
         )}
       </div>
 

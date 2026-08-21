@@ -1,0 +1,57 @@
+{
+  "summary": "Iteration 47 — verified the three new features end-to-end. Backend: 30 pytest cases across gift-card store credit (credit-only Stripe+PayPal, partial reserve + credit-release, atomicity/no-negative under 6 concurrent requests, cross-user release blocked), Find Your Path quiz (5 answer combos incl. beginner+foundations->Core 26+/online_only and advanced+mastery->Core 84/vip), Printful Part B (status guard payments_live=false, stores list w/ counts incl. store 16428293 = 36 products, image hosts, draft readback, admin-only guards, webhook idempotency) and auth-playbook checks. 29 passed, 1 failed (CORS allow_credentials), 1 skipped (superseded). Frontend: quiz wizard (5 steps, back, both CTAs, mobile), homepage home-quiz-cta, student credit-only checkout on /passes (drop_in $22 and class_pack $99 both completed with NO gateway; credit 245->223->124, passes 11->12->17), unchecked toggle correctly falls back to a real Stripe redirect, and admin Orders & Fulfillment 'Send draft' (order went skipped_test_mode -> PRINTFUL: DRAFT) + Refresh tracking + Shop&Printful pane store select/fulfill toggle showing 'test mode'. Test-mode guard verified end-to-end: a credit-paid cart order with a Printful product got printful_status='skipped_test_mode' and NO printful_order_id.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "/api/checkout/session (apply_credit, partial) + /api/checkout/cancel flow", "issue": "Reserved store credit is STRANDED on abandonment. Partial-credit Stripe sessions deduct credit immediately, but /api/checkout/credit-release has zero callers: grep shows no frontend call and no expiry sweeper, and Stripe cancel_url is '/checkout/cancel' with no session_id so the UI cannot release it. A user who closes/cancels Stripe permanently loses the reserved credit until an admin intervenes.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "CORS (server.py)", "issue": "allow_credentials=False with allow_origins='*', yet /api/auth/login sets an httpOnly access_token cookie — the cookie can never be sent cross-origin. Playbook item 'CORS allows credentials with explicit origins' not met (app works because the SPA uses Bearer tokens). Decide: either drop the cookie or set CORS_ORIGINS explicitly + allow_credentials=True."},
+      {"endpoint": "/api/checkout/session (program, EUR)", "issue": "Store credit is applied 1:1 across currencies (100 USD credit reduced a €199 program to €99 charge) — known simplification, but no FX note is surfaced to the user."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "admin/OrdersPane", "issue": "'Fulfill now' (confirm=true) submits a REAL, chargeable Printful order on a single click with no confirm() dialog or 'are you sure' step — one misclick in the admin console spends money.", "selector": "[data-testid^='order-fulfill-']", "priority": "HIGH"},
+      {"component": "admin/ProductsPane store select", "issue": "React console error on the Shop & Printful pane: 'In HTML, <span> cannot be a child of <option> ... will cause a hydration error' (some text wrapper renders a span inside <option>). Functionality unaffected but it pollutes the console.", "selector": "[data-testid='printful-store-select']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Find Your Path result", "issues": ["quiz-membership-card shows only name + billing cycle ('Essential / Monthly Plan') with no price, so the user cannot compare tiers before clicking through", "Option sub-labels and the trailing arrow glyph on quiz cards use very light grey (#9AA096-ish) on white — borderline contrast on mobile"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration47.py",
+    "/app/backend/tests/test_iteration47_partial.py",
+    "/app/backend/tests/test_iteration47_race.py",
+    "/app/backend/tests/test_iteration47_cart.py",
+    "/app/backend/tests/test_iteration47_auth.py",
+    "/app/test_reports/pytest/iter47_all.xml"
+  ],
+  "action_items": [
+    "Wire up /api/checkout/credit-release: pass session_id into Stripe cancel_url (and store it client-side) so CheckoutCancel releases the reservation, and/or add a background sweeper that releases credit_applied for unpaid transactions older than ~30-60 min.",
+    "Add a confirmation step to admin 'Fulfill now' (order-fulfill-<id>) since it submits a real paid Printful order.",
+    "Decide the cookie/CORS story: either remove the httpOnly login cookie or configure explicit CORS_ORIGINS + allow_credentials=True.",
+    "Show the membership price on quiz-membership-card.",
+    "Fix the <span> inside <option> React warning in ProductsPane's store select."
+  ],
+  "critical_code_review_comments": [
+    "payments.py::_reserve_store_credit is correctly atomic (conditional $gte update) — verified: 6 concurrent credit-only drop_in requests produced exactly 1 credit_only purchase and never a negative balance.",
+    "printful.py::try_auto_fulfill_order correctly short-circuits on _is_live_payments() and writes printful_status='skipped_test_mode' — verified end-to-end with a credit-paid cart order (no printful_order_id created).",
+    "credit-release is user-scoped (admin got 404 on another user's session) and idempotent (credit_released flag) — good; it just has no caller.",
+    "Credit reservation happens BEFORE the Stripe session is created and is released on exception, but there is no compensating action for the far more likely 'user abandons Stripe' path."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration47.py",
+    "/app/backend/tests/test_iteration47_partial.py",
+    "/app/backend/tests/test_iteration47_race.py",
+    "/app/backend/tests/test_iteration47_cart.py",
+    "/app/backend/tests/test_iteration47_auth.py"
+  ],
+  "success_rate": {"backend": "97% (29/30 assertions-suites passed; only the CORS playbook check failed)", "frontend": "100% of tested flows passed (quiz, homepage CTA, credit-only checkout, gateway fallback, admin draft fulfilment)"},
+  "seed_data_creation": "Gift cards issued to student@demo.com (total 450 USD credit; 121 consumed by drop_in $22 + class_pack $99 + cart order €47, remainder ~77). Throwaway users TEST_credit_*@example.com and TEST_race_*@example.com created via /auth/register. One paid cart order 2c1d9485-2c26-4eaf-8e85-352effebe634 (Yoga mat, €47) paid entirely with credit and then sent to Printful as a DRAFT via the admin UI (no charge; delete the draft in Printful if unwanted). confirm=true was never called.",
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_self_test": false,
+  "test_credentials": "/app/memory/test_credentials.md present and valid (admin tony@tonyyoga.com, student student@demo.com).",
+  "context_for_next_testing_agent": "Run `pytest tests/test_iteration47*.py` from /app/backend (pytest.ini adds xdist; use -o addopts='' with -s to see prints). The only expected failure today is test_iteration47_auth::test_cors_allows_credentials_with_explicit_origin. For partial-credit tests always register a fresh user (test_iteration47_partial pattern) — student@demo.com accumulates credit and makes the partial path skip. Never call /api/admin/orders/{id}/fulfill?confirm=true (real chargeable Printful order); confirm=false drafts are safe. Printful catalogue currently: 40 products total, store 16428293 reports 36; image hosts files.cdn.printful.com (23) + tonyoga.online (17), none missing.",
+  "rca_of_the_issue": "Stranded credit: create_checkout reserves credit via _reserve_store_credit before creating the Stripe session and stores credit_applied on the transaction, but the only recovery path (/checkout/credit-release) is never invoked — the Stripe cancel_url omits session_id and CheckoutCancel (frontend/src/pages/Checkout.jsx:95) renders a static message with no API call; there is also no TTL sweeper for 'initiated'/'open' transactions. Reproduce: fresh user with 100 credit -> POST /api/checkout/session {item_type:'program', apply_credit:true} -> balance 0 -> abandon the Stripe URL -> balance stays 0 forever."
+}

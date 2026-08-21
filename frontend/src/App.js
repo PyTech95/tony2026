@@ -14,6 +14,7 @@ import ProgramDetail from "@/pages/ProgramDetail";
 import Asanas from "@/pages/Asanas";
 import Discover from "@/pages/Discover";
 import Meditations from "@/pages/Meditations";
+import FindYourPath from "@/pages/FindYourPath";
 import Library from "@/pages/Library";
 import VideoPlayer from "@/pages/VideoPlayer";
 import Memberships from "@/pages/Memberships";
@@ -79,6 +80,8 @@ export default function App() {
             <Route path="/asanas" element={<Asanas />} />
             <Route path="/discover" element={<Discover />} />
             <Route path="/meditations" element={<Meditations />} />
+            <Route path="/find-your-path" element={<FindYourPath />} />
+            <Route path="/quiz" element={<FindYourPath />} />
             <Route path="/breathwork" element={<Meditations />} />
             <Route path="/library" element={<Library />} />
             <Route path="/library/:id" element={<VideoPlayer />} />

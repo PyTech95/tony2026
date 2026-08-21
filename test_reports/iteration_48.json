@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 48 — targeted retest of the 5 iteration_47 fixes (stranded gift-card credit release, TTL sweeper, admin Fulfill-now confirm guard, quiz membership price, Printful pane redesign) plus the credit-only regression. ALL fixes verified working. Backend: 5/5 pytest cases pass (partial-credit reserve on Stripe checkout, /checkout/credit-release release + idempotency + 400/404/401 validation + cross-user isolation, credit-only checkout). Sweeper verified functionally by backdating an 'initiated' txn 60 min: credit released, credit_released=true, status=expired, idempotent on 2nd run. Frontend: /checkout/cancel?session_id=<sid> auto-called credit-release and rendered checkout-credit-restored ('Your $100.00 gift-card credit has been returned'), balance confirmed back to 100.0 via /api/me/store-credit; second visit shows no banner (idempotent); bare /checkout/cancel with no param renders cleanly. Admin Orders: 'Fulfill now' fires window.confirm with an explicit chargeable warning and dismissing it makes ZERO backend calls (verified via request interception) — confirm was never accepted, no real Printful order submitted. 'Send draft' shows NO dialog and fires POST /admin/orders/{id}/fulfill?confirm=false -> 200. Admin Shop & Printful: printful-store-select present and defaulting to 'Tonyoga — woocommerce (36 products)', printful-sync-btn, printful-fulfill-toggle ('test mode — starts once live payments are on') and synced-count '40 products synced' all present; onboarding tip correctly hidden since synced>0; ZERO console errors (span-in-option warning gone). Quiz: quiz-membership-card shows visible quiz-membership-price '$29 · monthly plan'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration48.py",
+    "/app/backend/tests/sweeper_iteration48.py",
+    "/app/backend/tests/seed_it48_cancel.py",
+    "/app/backend/tests/cleanup_iteration48.py",
+    "/app/test_reports/pytest/it48.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "payments.py line ~73 (_create_subscription_session) cancel_url has no ?session_id={CHECKOUT_SESSION_ID}. Harmless today because the subscription path never reserves store credit, but if credit is ever allowed on subscriptions the same stranding bug returns — consider adding the param for consistency.",
+    "Store credit remains 1:1 across currencies (a $100 gift card fully offsets €100). Acknowledged simplification, but the cancel banner always prints '$' regardless of the txn currency — cosmetic only.",
+    "release_stranded_credit_tick sets status='expired' but leaves payment_status='initiated'; if a Stripe webhook lands after the 45-min sweep the credit would already be refunded while fulfilment proceeds. Low probability (Stripe sessions expire at 24h, but a session paid at minute 50 is possible) — consider guarding _fulfill_payment against credit_released=True."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration48.py",
+    "/app/backend/tests/sweeper_iteration48.py",
+    "/app/backend/tests/seed_it48_cancel.py",
+    "/app/backend/tests/cleanup_iteration48.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Created 4 temp users on @qatest48.com with gift-card credit + Stripe test sessions; ALL deleted afterwards via cleanup_iteration48.py (users + payment_transactions). Note: .test TLD is rejected by email validation — use a real-looking domain for registration in future tests. One extra Printful DRAFT (confirm=false, non-chargeable) was created for order 2e049ac8.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All iteration_47 fixes verified in iteration 48; nothing outstanding. Reusable helpers: /app/backend/tests/seed_it48_cancel.py creates a reserved-credit Stripe session and prints its session_id for CheckoutCancel UI testing; sweeper_iteration48.py exercises release_stranded_credit_tick by backdating a txn. Registration rejects .test TLDs (use @qatest48.com style). For dialog-driven flows in async Playwright you MUST use an async dialog handler (await d.dismiss()) or the click times out. 'Fulfill now' confirm must never be accepted (real chargeable Printful order); only confirm=false drafts are safe.",
+  "rca_of_the_issue": "N/A — no defects found this iteration. Two test-harness issues were self-fixed: (1) registration 422 because test emails used the reserved .test TLD; (2) a Playwright click timeout caused by a sync dialog handler whose d.dismiss() coroutine was never awaited."
+}

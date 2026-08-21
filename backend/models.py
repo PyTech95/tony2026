@@ -335,6 +335,7 @@ class CheckoutRequest(BaseModel):
     origin_url: str
     quantity: int = 1
     metadata: Optional[Dict[str, str]] = None
+    apply_credit: Optional[bool] = False  # apply the user's gift-card store credit
 
 class CouponCreate(BaseModel):
     code: str

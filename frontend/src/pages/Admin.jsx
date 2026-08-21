@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
-import { LayoutDashboard, Youtube, Package, GraduationCap, Calendar, ClipboardCheck, Mic, MountainSnow, Gift, Settings as SettingsIcon, Upload, ChevronRight, Flower2, Sparkles, ShoppingBag } from "lucide-react";
+import { LayoutDashboard, Youtube, Package, GraduationCap, Calendar, ClipboardCheck, Mic, MountainSnow, Gift, Settings as SettingsIcon, Upload, ChevronRight, Flower2, Sparkles, ShoppingBag, Truck } from "lucide-react";
 import StatsPane from "./admin/StatsPane";
 import CoursesPane from "./admin/CoursesPane";
 import BundlesPane from "./admin/BundlesPane";
@@ -16,6 +16,7 @@ import ImportPane from "./admin/ImportPane";
 import AsanasPane from "./admin/AsanasPane";
 import MeditationsPane from "./admin/MeditationsPane";
 import ProductsPane from "./admin/ProductsPane";
+import OrdersPane from "./admin/OrdersPane";
 
 const ADMIN_NAV = [
   { key: "stats", label: "Overview", icon: LayoutDashboard },
@@ -23,6 +24,7 @@ const ADMIN_NAV = [
   { key: "asanas", label: "Asana Index", icon: Flower2 },
   { key: "meditations", label: "Meditation & Breath", icon: Sparkles },
   { key: "shop", label: "Shop & Printful", icon: ShoppingBag },
+  { key: "orders", label: "Orders & Fulfillment", icon: Truck },
   { key: "bundles", label: "Bundles", icon: Package },
   { key: "students", label: "Students", icon: GraduationCap },
   { key: "classes", label: "Classes", icon: Calendar },
@@ -55,7 +57,7 @@ function AdminNavItem({ active, onClick, tid, icon: Icon, children }) {
 export default function Admin() {
   const { user, ready } = useAuth();
   const [params, setParams] = useSearchParams();
-  const validTabs = ["stats", "courses", "asanas", "meditations", "shop", "bundles", "students", "classes", "apps", "broadcast", "retreats", "giftcards", "settings", "import"];
+  const validTabs = ["stats", "courses", "asanas", "meditations", "shop", "orders", "bundles", "students", "classes", "apps", "broadcast", "retreats", "giftcards", "settings", "import"];
   const initialTab = validTabs.includes(params.get("tab")) ? params.get("tab") : "stats";
   const [tab, setTab] = useState(initialTab);
   const selectTab = (t) => { setTab(t); setParams(t === "stats" ? {} : { tab: t }, { replace: true }); };
@@ -105,6 +107,7 @@ export default function Admin() {
           {tab === "asanas" && <AsanasPane />}
           {tab === "meditations" && <MeditationsPane />}
           {tab === "shop" && <ProductsPane />}
+          {tab === "orders" && <OrdersPane />}
           {tab === "bundles" && <BundlesPane />}
           {tab === "students" && <StudentsPane />}
           {tab === "classes" && <ClassesPane />}
