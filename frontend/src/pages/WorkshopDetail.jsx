@@ -72,6 +72,9 @@ export default function WorkshopDetail() {
   const spotsLeft = avail ? avail.seats_left : Math.max(0, (w.capacity || 14) - (w.registered_count || 0));
   const isFull = avail ? avail.is_full : spotsLeft === 0;
   const myStatus = myReg?.status;
+  const offerHoursLeft = myReg?.seat_offer_expires_at
+    ? Math.max(0, Math.ceil((new Date(myReg.seat_offer_expires_at) - Date.now()) / 3600000))
+    : null;
 
   return (
     <div data-testid="workshop-detail" className="pb-6">
@@ -93,7 +96,7 @@ export default function WorkshopDetail() {
               <div className="rounded-2xl bg-white border border-[#E5E6DF] p-4">
                 <Calendar className="h-4 w-4 text-[#B25A45] mb-2" />
                 <div className="eyebrow !text-[10px]">Dates</div>
-                <div className="text-sm mt-1 font-semibold">{new Date(w.start_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })} – {new Date(w.end_date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
+                <div className="text-sm mt-1 font-semibold">{new Date(w.start_date).toLocaleDateString(undefined, { month: "long", year: "numeric" })}</div>
               </div>
               <div className="rounded-2xl bg-white border border-[#E5E6DF] p-4">
                 <MapPin className="h-4 w-4 text-[#B25A45] mb-2" />
@@ -139,7 +142,7 @@ export default function WorkshopDetail() {
                 </div>
               ) : myStatus === "seat_offered" ? (
                 <button onClick={() => setStep("form")} data-testid="workshop-claim-seat-btn" className="pill !bg-[#B25A45] !text-white w-full mt-5">
-                  🎉 A seat opened — reserve now <ArrowRight className="h-4 w-4" />
+                  🎉 A seat opened — reserve now{offerHoursLeft != null ? ` (${offerHoursLeft}h left)` : ""} <ArrowRight className="h-4 w-4" />
                 </button>
               ) : isFull ? (
                 <button onClick={joinWaitlist} data-testid="workshop-join-waitlist-btn" className="pill !bg-white/15 !text-white w-full mt-5">

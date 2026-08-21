@@ -8,6 +8,10 @@ import { usePaymentProviders } from "@/lib/providers";
 import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
 import PushToggle from "@/components/PushToggle";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 function formatWhen(iso) {
   const d = new Date(iso);
@@ -24,7 +28,25 @@ export default function Profile() {
   const [credit, setCredit] = useState(0);
   const [gcCode, setGcCode] = useState("");
   const [gcBusy, setGcBusy] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
   const { paypal: paypalAvailable } = usePaymentProviders();
+
+  const refundPreview = (r) => {
+    const days = Math.ceil((new Date(r.workshop_start_date) - Date.now()) / 86400000);
+    const paid = ["deposit_paid", "paid_in_full"].includes(r.status);
+    return { days, refundable: days >= 60, paid };
+  };
+
+  const cancelRetreat = async (r) => {
+    setCancelBusy(true);
+    try {
+      const { data } = await api.post(`/retreats/${r.id}/cancel`);
+      setRetreats((rs) => rs.map((x) => x.id === r.id ? { ...x, status: "cancelled", refund_status: data.refund_status } : x));
+      toast.success(data.message || "Reservation cancelled");
+    } catch (e) { toast.error(e?.response?.data?.detail || "Could not cancel"); }
+    finally { setCancelBusy(false); setCancelTarget(null); }
+  };
 
   useEffect(() => {
     (async () => {
@@ -183,9 +205,13 @@ export default function Profile() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-[14px] font-semibold truncate">{r.workshop_title}</div>
-                      <div className="text-xs text-[#6B7269] mt-0.5">{new Date(r.workshop_start_date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
-                      <div className="text-[10px] uppercase tracking-widest mt-1.5 font-semibold" style={{ color: r.status === "paid_in_full" ? "#839682" : r.status === "deposit_paid" ? "#B25A45" : "#6B7269" }}>
-                        {r.status === "paid_in_full" ? "Paid in full" : r.status === "deposit_paid" ? `Deposit paid · balance €${Math.round(r.balance_eur)} due ${new Date(r.balance_due_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : `Pending deposit €${Math.round(r.deposit_eur)}`}
+                      <div className="text-xs text-[#6B7269] mt-0.5">{new Date(r.workshop_start_date).toLocaleDateString(undefined, { month: "long", year: "numeric" })}</div>
+                      <div className="text-[10px] uppercase tracking-widest mt-1.5 font-semibold" style={{ color: r.status === "cancelled" ? "#9AA096" : r.status === "paid_in_full" ? "#839682" : r.status === "deposit_paid" ? "#B25A45" : "#6B7269" }}>
+                        {r.status === "cancelled"
+                          ? `Cancelled${r.refund_status === "refund_pending" ? " · refund pending" : r.refund_status === "non_refundable" ? " · non-refundable" : ""}`
+                          : r.status === "paid_in_full" ? "Paid in full"
+                          : r.status === "deposit_paid" ? `Deposit paid · balance €${Math.round(r.balance_eur)} due ${new Date(r.balance_due_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+                          : `Pending deposit €${Math.round(r.deposit_eur)}`}
                       </div>
                     </div>
                     {r.status === "deposit_paid" && (
@@ -199,11 +225,65 @@ export default function Profile() {
                       </button>
                     )}
                   </div>
+                  {!["cancelled", "waitlisted", "seat_offered"].includes(r.status) && (
+                    <button
+                      onClick={() => setCancelTarget(r)}
+                      data-testid={`retreat-cancel-${r.id}`}
+                      className="mt-3 text-xs font-semibold text-[#B25A45] hover:underline"
+                    >
+                      Cancel reservation
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
           </section>
         )}
+
+        {/* Cancel + refund policy dialog */}
+        <AlertDialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
+          <AlertDialogContent data-testid="retreat-cancel-dialog">
+            {cancelTarget && (() => {
+              const { days, refundable, paid } = refundPreview(cancelTarget);
+              return (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel {cancelTarget.workshop_title}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      <span className="block mb-2">Your retreat starts in <strong>{days} day{days === 1 ? "" : "s"}</strong>.</span>
+                      {paid ? (
+                        refundable ? (
+                          <span className="block rounded-xl bg-[#EEF1EC] text-[#5C7355] px-3 py-2" data-testid="refund-note-refundable">
+                            You're cancelling more than 60 days out — your deposit is <strong>fully refundable</strong>. Tony will process the refund to your original payment method.
+                          </span>
+                        ) : (
+                          <span className="block rounded-xl bg-[#F7ECE8] text-[#B25A45] px-3 py-2" data-testid="refund-note-nonrefundable">
+                            You're within 60 days of the start — per policy the deposit is <strong>non-refundable</strong>. Your seat will be released to the waitlist.
+                          </span>
+                        )
+                      ) : (
+                        <span className="block rounded-xl bg-[#F2F2EC] text-[#6B7269] px-3 py-2">
+                          No payment has been taken yet — cancelling simply releases your seat.
+                        </span>
+                      )}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel data-testid="retreat-cancel-dismiss">Keep my seat</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => cancelRetreat(cancelTarget)}
+                      disabled={cancelBusy}
+                      data-testid="retreat-cancel-confirm"
+                      className="!bg-[#B25A45]"
+                    >
+                      {cancelBusy ? "Cancelling…" : "Cancel reservation"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </>
+              );
+            })()}
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Links */}
         <section className="grid grid-cols-2 gap-3">

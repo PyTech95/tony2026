@@ -13,9 +13,9 @@ from seed import seed
 from fastapi import Request
 
 # Register all routers (side-effect imports)
-from routers import auth, scheduling, content, payments, referrals, admin, workshops, push, orders, submissions, settings, seed_tony, paypal, news, retreats, streaks, passes, wishlist, marketing, providers, bundles, assistant, zoom, broadcasts, leaderboard, giftcards, notifications  # noqa: F401
+from routers import auth, scheduling, content, payments, referrals, admin, workshops, push, orders, submissions, settings, seed_tony, paypal, news, retreats, streaks, passes, wishlist, marketing, providers, bundles, assistant, zoom, broadcasts, leaderboard, giftcards, notifications, uploads  # noqa: F401
 from routers.push import send_reminders_tick
-from routers.retreats import send_balance_reminders_tick
+from routers.retreats import send_balance_reminders_tick, expire_seat_offers_tick
 from routers.marketing import instagram_sync_tick
 from routers.broadcasts import broadcasts_publish_tick
 from routers.zoom import zoom_recording_poll_tick
@@ -129,6 +129,14 @@ async def on_startup():
         _seed_error = f"Seed exception: {e}"
         logger.exception(f"Seed failed (app will still start): {e}")
 
+    # Initialise object storage (retreat photo uploads). Best-effort.
+    try:
+        from routers.uploads import init_storage
+        init_storage()
+        logger.info("Object storage initialised")
+    except Exception as e:
+        logger.warning(f"Object storage init failed (uploads will retry on first use): {e}")
+
     # Enable Stripe (one-time payments via emergentintegrations proxy).
     # Subscriptions require a real Stripe key — kept OFF; memberships still
     # process as one-time payments (customer pays for one full billing cycle).
@@ -158,6 +166,10 @@ async def _reminder_loop():
             await send_balance_reminders_tick()
         except Exception as e:
             logger.warning(f"balance reminder tick failed: {e}")
+        try:
+            await expire_seat_offers_tick()
+        except Exception as e:
+            logger.warning(f"seat offer expiry tick failed: {e}")
         try:
             await instagram_sync_tick()
         except Exception as e:

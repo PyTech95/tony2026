@@ -217,7 +217,7 @@ function Retreats() {
                 <div className="serif text-2xl mt-1 leading-tight">{w.title}</div>
                 <p className="text-sm text-[#6B7269] mt-2 leading-relaxed clamp-2">{w.description}</p>
                 <div className="mt-4 flex items-center justify-between">
-                  <div className="text-sm text-[#545E56]">{new Date(w.start_date).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</div>
+                  <div className="text-sm text-[#545E56]">{new Date(w.start_date).toLocaleDateString(undefined, { month: "long", year: "numeric" })}</div>
                   <div className="text-[#B25A45] font-semibold">€{w.deposit_eur ?? 500} deposit</div>
                 </div>
               </div>

@@ -9,6 +9,8 @@ from core import api, db, now_utc, gen_id, get_current_user
 
 DEPOSIT_EUR = float(os.environ.get("RETREAT_DEPOSIT_EUR", "500"))
 BALANCE_DUE_DAYS_BEFORE = int(os.environ.get("RETREAT_BALANCE_DUE_DAYS_BEFORE", "30"))
+SEAT_OFFER_HOURS = int(os.environ.get("RETREAT_SEAT_OFFER_HOURS", "48"))
+REFUND_CUTOFF_DAYS = int(os.environ.get("RETREAT_REFUND_CUTOFF_DAYS", "60"))
 
 
 class RetreatReserve(BaseModel):
@@ -154,11 +156,40 @@ async def cancel_reservation(reservation_id: str, user: dict = Depends(get_curre
         raise HTTPException(404, "Reservation not found")
     if reg["user_id"] != user["id"] and user.get("role") not in ("admin", "support"):
         raise HTTPException(403, "Forbidden")
+    if reg.get("status") == "cancelled":
+        raise HTTPException(400, "This reservation is already cancelled.")
+
+    # Refund rule: fully refundable if cancelling at least REFUND_CUTOFF_DAYS before the retreat starts.
+    refund_eligible = False
+    start_iso = reg.get("workshop_start_date")
+    if start_iso:
+        start = datetime.fromisoformat(str(start_iso).replace("Z", "+00:00"))
+        days_until = (start - now_utc()).days
+        refund_eligible = days_until >= REFUND_CUTOFF_DAYS
+    paid_something = reg.get("status") in ("deposit_paid", "paid_in_full")
+    if not paid_something:
+        refund_status = "not_applicable"
+    else:
+        refund_status = "refund_pending" if refund_eligible else "non_refundable"
+
     await db.workshop_registrations.update_one(
-        {"id": reservation_id}, {"$set": {"status": "cancelled", "cancelled_at": now_utc().isoformat()}}
+        {"id": reservation_id},
+        {"$set": {
+            "status": "cancelled",
+            "cancelled_at": now_utc().isoformat(),
+            "refund_eligible": refund_eligible,
+            "refund_status": refund_status,
+        }},
     )
     await _promote_waitlist(reg["workshop_id"])
-    return {"ok": True}
+    if refund_status == "refund_pending":
+        message = f"Reservation cancelled. Your deposit is refundable — Tony will process it within a few days."
+    elif refund_status == "non_refundable":
+        message = f"Reservation cancelled. As it's within {REFUND_CUTOFF_DAYS} days of the retreat, the deposit is non-refundable per policy."
+    else:
+        message = "Reservation cancelled."
+    return {"ok": True, "refund_eligible": refund_eligible, "refund_status": refund_status,
+            "refund_cutoff_days": REFUND_CUTOFF_DAYS, "message": message}
 
 
 async def _promote_waitlist(workshop_id: str):
@@ -174,14 +205,19 @@ async def _promote_waitlist(workshop_id: str):
     if not nxt:
         return
     await db.workshop_registrations.update_one(
-        {"id": nxt["id"]}, {"$set": {"status": "seat_offered", "seat_offered_at": now_utc().isoformat()}}
+        {"id": nxt["id"]}, {"$set": {
+            "status": "seat_offered",
+            "seat_offered_at": now_utc().isoformat(),
+            "seat_offer_expires_at": (now_utc() + timedelta(hours=SEAT_OFFER_HOURS)).isoformat(),
+        }}
     )
     title = workshop.get("title", "retreat")
     try:
         from routers.push import notify_user
         await notify_user(
             nxt["user_id"], f"A seat opened · {title}",
-            "You're off the waitlist! Tap to reserve your seat.", f"/workshops/{workshop_id}",
+            f"You're off the waitlist! Claim your seat within {SEAT_OFFER_HOURS}h before it rolls to the next person.",
+            f"/workshops/{workshop_id}",
         )
     except Exception as e:
         _logger.warning(f"waitlist push failed: {e}")
@@ -191,11 +227,42 @@ async def _promote_waitlist(workshop_id: str):
             await send_email(
                 nxt["email"], f"A seat opened for {title} 🌿",
                 f"<h3>Good news — a seat just opened for {title}.</h3>"
-                f"<p>You're first on the waitlist. Reserve your seat with your deposit in-app before someone else does.</p>"
+                f"<p>You're first on the waitlist. Reserve your seat with your deposit in-app "
+                f"within <strong>{SEAT_OFFER_HOURS} hours</strong> — after that it rolls to the next person.</p>"
                 f"<p>— Tony</p>",
             )
     except Exception as e:
         _logger.warning(f"waitlist email failed: {e}")
+
+
+async def expire_seat_offers_tick():
+    """Expire seat offers older than SEAT_OFFER_HOURS and promote the next waitlister.
+    Called from the server.py background loop."""
+    now = now_utc()
+    expired = await db.workshop_registrations.find(
+        {"status": "seat_offered", "seat_offer_expires_at": {"$lte": now.isoformat()}},
+        {"_id": 0},
+    ).to_list(200)
+    for r in expired:
+        await db.workshop_registrations.update_one(
+            {"id": r["id"]},
+            {"$set": {"status": "offer_expired", "offer_expired_at": now.isoformat()}},
+        )
+        title = r.get("workshop_title", "retreat")
+        try:
+            from routers.push import notify_user
+            await notify_user(
+                r["user_id"], f"Seat offer expired · {title}",
+                "The window to claim your seat has passed — it's been offered to the next person.",
+                "/workshops",
+            )
+        except Exception as e:
+            _logger.warning(f"expire notify failed: {e}")
+        # Free the seat -> offer to the next waitlister.
+        await _promote_waitlist(r["workshop_id"])
+    if expired:
+        _logger.info(f"seat offers expired: {len(expired)}")
+    return len(expired)
 
 
 @api.get("/retreats/{reservation_id}")

@@ -1,0 +1,49 @@
+{
+  "summary": "Iteration 35 full-stack verification of the 4 retreat deliverables (admin photo uploads to Emergent object storage, guest cancel + 60-day refund rule, waitlist 48h seat-offer expiry, month+year date display) plus regressions. Backend: 22/22 pytest cases pass (/app/backend/tests/test_iteration35.py) — admin upload returns {url,path}, /api/files/{path} serves HTTP 200 image/png with byte-identical content, non-admin=403, anonymous=401, non-image=400, unknown file=404; cancel returns refund_pending (>=60d + paid), non_refundable (<60d + paid), not_applicable (unpaid), 400 on repeat, 403 for another user's reservation, 404 unknown, 401 unauthenticated; cancel promotes next waitlister to seat_offered with a fresh 48h window; the 60s background loop's expire_seat_offers_tick() flipped an expired seat_offered row to offer_expired and promoted the next waitlister with a fresh ~48h expiry; seeded retreat starts 2026-12-01; no _id leaks. Auth playbook verified: bcrypt $2b$ hashes, httpOnly access_token cookie on login, brute-force 429 after 5 failures, seed_admin re-hashes on password change, /auth/me strips password_hash. Frontend (mobile 390x844): admin Console -> Retreats upload control uploads a PNG (POST /api/admin/uploads 200), renders a real (non-broken) thumbnail served from /api/files/..., syncs the URL into the paste-URL textarea, paste-URL entry still adds previews and remove works; Profile cancel dialog shows days-until-start plus the correct refundable / non-refundable / no-payment note, confirm calls the API and the row updates to 'Cancelled · refund pending' / 'Cancelled · non-refundable' with the cancel button hidden, 'Keep my seat' dismisses without cancelling; pay-balance button renders for deposit_paid; WorkshopDetail shows the claim-seat button with '(48h left)' countdown; Marketing card, WorkshopDetail Dates card and Profile all render 'December 2026' (month+year only). No blocking bugs found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/uploads, GET /api/files/{path}", "issue": "Uses the blocking `requests` library inside async endpoints (init_storage/_put_object/_get_object), which blocks the FastAPI event loop for the duration of every upload/serve (up to the 120s timeout). Should use httpx.AsyncClient or starlette.concurrency.run_in_threadpool."},
+      {"endpoint": "POST /api/admin/uploads", "issue": "No max file-size guard — a large image is read fully into memory (`await file.read()`) and pushed to object storage; add a size cap (e.g. 10 MB) and return 413."},
+      {"endpoint": "gallery edits", "issue": "Removing a photo from a retreat gallery leaves the object and its uploaded_files row orphaned in storage (slow storage leak); no cleanup/soft-delete path is exercised anywhere."},
+      {"endpoint": "server CORS", "issue": "CORSMiddleware is configured with allow_credentials=False while /auth/login sets an httpOnly access_token cookie — cookie-based auth would silently fail from any other origin. Currently harmless because the SPA is same-origin and uses Bearer tokens, but the playbook expects allow_credentials=True with explicit origins."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Admin RetreatsPane gallery preview", "issue": "The per-photo remove button is `opacity-0 group-hover:opacity-100`, so on touch devices (the console is a mobile-first layout) it is invisible and effectively unreachable — Playwright needed force=True to click it. Make it always visible on small screens.", "selector": "[data-testid='retreat-gallery-remove-0']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin Console → Retreats → Publish a retreat", "issues": ["Start/End date use native browser date inputs (mm/dd/yyyy placeholder) instead of the shadcn calendar/date-picker used elsewhere — inconsistent with the design system and locale-confusing."]},
+      {"screen": "Profile cancel AlertDialog (mobile)", "issues": ["Dialog has square corners on mobile (ui/alert-dialog.jsx applies `sm:rounded-lg` only) while the whole app uses rounded-2xl cards — visually off at 390px width."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration35.py",
+    "/app/backend/tests/fixture_iteration35.py",
+    "/app/test_reports/pytest/iteration35_results.xml"
+  ],
+  "action_items": [
+    "Make the gallery photo remove (×) button visible without hover on touch/mobile widths.",
+    "Replace blocking `requests` calls in routers/uploads.py with async HTTP (httpx) or run_in_threadpool, and add an upload size limit.",
+    "Optional: swap the admin retreat Start/End native date inputs for the shadcn date picker; round the AlertDialog corners on mobile."
+  ],
+  "critical_code_review_comments": [
+    "routers/uploads.py performs synchronous network I/O (requests.post/put/get) inside async def handlers — every upload and every public image fetch blocks the single event loop; this will visibly stall the whole API under concurrent gallery loads.",
+    "routers/retreats.py: module-level `_logger` is defined at line ~280, after _promote_waitlist/expire_seat_offers_tick reference it; it works at runtime but should be declared at the top of the module with the other imports.",
+    "frontend/src/pages/Admin.jsx is 1911 lines — split each pane (RetreatsPane, SettingsPane, …) into its own module.",
+    "uvicorn --reload watches /app/backend/tests, so editing test files restarts the backend and resets the 60s background loop; consider excluding the tests dir from reload watching."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration35.py",
+    "/app/backend/tests/fixture_iteration35.py"
+  ],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "100% of tested flows (upload, cancel+refund both branches, dismiss, claim-seat countdown, month+year dates, pay-balance render)"},
+  "seed_data_creation": "Temporary registrations for student@demo.com on retreat d133c455 (TEST_ui_paid_reg, TEST_ui_near_reg, TEST_ui_offer_reg) and TEST_* waitlist/seat_offered rows; two TEST_*.png uploads. All removed afterwards (fixture_iteration35.py clean; uploaded_files TEST_ rows deleted; 0 registrations remain for the retreat).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "admin tony@tonyyoga.com / TonyYoga2026!, student student@demo.com / Student2026! (from /app/memory/test_credentials.md)",
+  "context_for_next_testing_agent": "Use /app/backend/tests/test_iteration35.py as the regression suite for retreat uploads/cancel/waitlist-expiry; run with `cd /app/backend && python -m pytest tests/test_iteration35.py` (pytest.ini injects xdist, don't pass -p no:xdist). Note the expire-tick test waits up to 150s for the 60s server loop. Use /app/backend/tests/fixture_iteration35.py {seed_paid|seed_paid_near|seed_offer|status|clean} to set up UI states (active retreat id d133c455-feec-4665-952f-cbcc8825f835, starts 2026-12-01). The brute-force lockout test must use a unique throwaway email each run or it returns 429 immediately. Do not screenshot the AlertDialog immediately after wait_for_selector — the fade/zoom animation makes it look transparent; wait ~900ms (verified opaque bg rgb(250,249,245), overlay rgba(0,0,0,0.8)).",
+  "rca_of_the_issue": "No functional defect found in this iteration's features. The only real UI defect is the hover-only gallery remove button (CSS opacity-0 group-hover:opacity-100 has no touch equivalent). The apparent 'transparent dialog' seen in an early screenshot was an artifact of capturing mid fade-in animation, not a styling bug — confirmed by computed styles."
+}

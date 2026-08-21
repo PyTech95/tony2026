@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Users, Calendar, TrendingUp, Send, Check, X, CreditCard, Mail, Bell, Save, RefreshCw, History, BookOpen, Plus, ArrowLeft, Trash2, ChevronUp, ChevronDown, Youtube, Play, Clock, Eye, EyeOff, ListPlus, Instagram, Wallet, ClipboardCheck, Package, GraduationCap, Award, MessageCircle, Video, Mic } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Navigate, useSearchParams } from "react-router-dom";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
@@ -1660,8 +1660,33 @@ function RetreatsPane() {
   const [rows, setRows] = useState(null);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const ic = "w-full rounded-xl border border-[#E5E6DF] bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#B25A45]";
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const galleryUrls = (form.gallery || "").split("\n").map((s) => s.trim()).filter(Boolean);
+
+  const uploadPhotos = async (files) => {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      const urls = [];
+      for (const file of Array.from(files)) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const { data } = await api.post("/admin/uploads", fd, { headers: { "Content-Type": "multipart/form-data" } });
+        urls.push(`${API_BASE}/files/${data.path}`);
+      }
+      set("gallery", [...galleryUrls, ...urls].join("\n"));
+      toast.success(`${urls.length} photo${urls.length > 1 ? "s" : ""} uploaded`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removePhoto = (url) => set("gallery", galleryUrls.filter((u) => u !== url).join("\n"));
 
   const load = () => api.get("/admin/workshops").then(({ data }) => setRows(data)).catch(() => setRows([]));
   useEffect(() => { load(); }, []);
@@ -1715,7 +1740,30 @@ function RetreatsPane() {
           <label className="text-xs text-[#6B7269]">Capacity<input data-testid="retreat-capacity" type="number" className={ic} value={form.capacity} onChange={(e) => set("capacity", e.target.value)} /></label>
         </div>
         <input data-testid="retreat-cover" className={ic} value={form.cover_image} onChange={(e) => set("cover_image", e.target.value)} placeholder="Cover image URL (optional)" />
-        <textarea data-testid="retreat-gallery" rows={3} className={ic} value={form.gallery} onChange={(e) => set("gallery", e.target.value)} placeholder="Gallery image URLs — one per line (villa, terrace, practice room…)" />
+
+        <div className="rounded-xl border border-dashed border-[#D8D9CF] bg-[#FAFAF7] p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-[#545E56]">Gallery photos</span>
+            <label data-testid="retreat-photo-upload" className={`text-xs font-semibold cursor-pointer rounded-full px-3 py-1 ${uploading ? "bg-[#F2F2EC] text-[#9AA096]" : "bg-[#B25A45] text-white hover:opacity-90"}`}>
+              {uploading ? "Uploading…" : "+ Upload photos"}
+              <input type="file" accept="image/*" multiple hidden disabled={uploading}
+                onChange={(e) => { uploadPhotos(e.target.files); e.target.value = ""; }} />
+            </label>
+          </div>
+          {galleryUrls.length > 0 && (
+            <div className="grid grid-cols-4 gap-2" data-testid="retreat-gallery-preview">
+              {galleryUrls.map((url, i) => (
+                <div key={i} className="relative group aspect-square">
+                  <img src={url} alt="" className="h-full w-full rounded-lg object-cover" />
+                  <button type="button" onClick={() => removePhoto(url)} data-testid={`retreat-gallery-remove-${i}`}
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-[#1C221F] text-white text-xs flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <textarea data-testid="retreat-gallery" rows={2} className={ic} value={form.gallery} onChange={(e) => set("gallery", e.target.value)} placeholder="…or paste image URLs — one per line" />
+        </div>
+
         <button onClick={create} disabled={busy} data-testid="retreat-create" className="pill pill-primary w-full">{busy ? "Publishing…" : "Publish retreat"}</button>
       </div>
 
