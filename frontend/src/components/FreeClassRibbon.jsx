@@ -54,9 +54,9 @@ export default function FreeClassRibbon() {
       try { localStorage.setItem("ty_free_class_claimed", "1"); } catch {}
       setClaimed(true);
       setExpanded(false);
-      toast.success(data.already_granted ? "Already claimed — check your email." : "Free class credit added. Check your email.");
+      toast.success(data.already_granted ? t("fc.toast_claimed") : t("fc.toast_added"));
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Could not claim");
+      toast.error(e?.response?.data?.detail || t("fc.toast_fail"));
     } finally { setBusy(false); }
   };
 
@@ -96,21 +96,21 @@ export default function FreeClassRibbon() {
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[71] w-[92%] max-w-md rounded-3xl bg-[#FAFAF7] shadow-2xl p-6 animate-fade-up">
             <div className="flex items-start justify-between mb-2">
               <div>
-                <div className="eyebrow mb-2">Welcome gift</div>
-                <h3 className="serif text-2xl leading-tight">Your first class,<br/>on us.</h3>
+                <div className="eyebrow mb-2">{t("fc.gift")}</div>
+                <h3 className="serif text-2xl leading-tight">{t("fc.title1")}<br/>{t("fc.title2")}</h3>
               </div>
               <button onClick={() => setExpanded(false)} aria-label="Close" className="rounded-full h-8 w-8 flex items-center justify-center hover:bg-[#F2F2EC]">
                 <X className="h-4 w-4" />
               </button>
             </div>
             <p className="text-sm text-[#545E56] mt-3 mb-5 leading-relaxed">
-              Drop your email and we'll credit one drop-in class to your account. Sign in anytime to book it.
+              {t("fc.desc")}
             </p>
             <form onSubmit={submit} className="space-y-3" data-testid="ribbon-form">
               <input
                 data-testid="ribbon-name"
                 value={name} onChange={(e) => setName(e.target.value)}
-                placeholder="Your name (optional)"
+                placeholder={t("fc.name_ph")}
                 className="w-full rounded-2xl border border-[#E5E6DF] px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#B25A45]"
               />
               <input
@@ -121,9 +121,9 @@ export default function FreeClassRibbon() {
                 className="w-full rounded-2xl border border-[#E5E6DF] px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#B25A45]"
               />
               <button type="submit" disabled={busy} data-testid="ribbon-submit" className="pill pill-primary w-full">
-                {busy ? "Claiming…" : "Get my free class"} <ArrowRight className="h-4 w-4" />
+                {busy ? t("fc.claiming") : t("fc.submit")} <ArrowRight className="h-4 w-4" />
               </button>
-              <p className="text-[11px] text-[#6B7269] text-center mt-1">One credit per email. Never expires.</p>
+              <p className="text-[11px] text-[#6B7269] text-center mt-1">{t("fc.note")}</p>
             </form>
           </div>
         </>

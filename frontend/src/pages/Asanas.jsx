@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, X, Flower2, ChevronRight } from "lucide-react";
+import { Search, X, Flower2, ChevronRight, Play } from "lucide-react";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
@@ -90,6 +90,11 @@ export default function Asanas() {
                     <div className="absolute inset-0 bg-gradient-to-t from-[#1C221F]/70 via-transparent to-transparent" />
                     {a.category && (
                       <span className="absolute top-2 left-2 text-[9px] uppercase tracking-widest font-bold bg-white/95 text-[#B25A45] rounded-full px-2 py-0.5">{a.category}</span>
+                    )}
+                    {a.youtube_id && (
+                      <span data-testid={`asana-clip-${a.id}`} className="absolute top-2 right-2 h-6 w-6 rounded-full bg-[#B25A45] text-white flex items-center justify-center shadow" title="Video clip">
+                        <Play className="h-3 w-3 ml-0.5" fill="currentColor" />
+                      </span>
                     )}
                     <div className="absolute bottom-2 left-3 right-3 text-white">
                       <div className="text-[13px] font-semibold leading-tight clamp-1">{a.name}</div>

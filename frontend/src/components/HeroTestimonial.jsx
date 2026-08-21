@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Play, Quote, Volume2, VolumeX } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
 
 /**
@@ -18,6 +19,7 @@ const FALLBACK = {
 };
 
 export default function HeroTestimonial() {
+  const { t } = useTranslation();
   const [cfg, setCfg] = useState(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
@@ -96,8 +98,8 @@ export default function HeroTestimonial() {
               <img src={cfg.poster_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#1C221F]/85 via-[#1C221F]/20 to-transparent" />
               <div className="absolute bottom-4 left-4 right-4 text-[#FAFAF7]">
-                <div className="eyebrow !text-[#E5E6DF] !text-[10px]">Video coming soon</div>
-                <div className="serif text-lg sm:text-xl mt-1 leading-tight">Filmed with real students</div>
+                <div className="eyebrow !text-[#E5E6DF] !text-[10px]">{t("ht.coming")}</div>
+                <div className="serif text-lg sm:text-xl mt-1 leading-tight">{t("ht.filmed")}</div>
               </div>
             </>
           )}

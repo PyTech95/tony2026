@@ -404,6 +404,30 @@ async def list_products(category: Optional[str] = None):
     return await db.products.find(query, {"_id": 0}).to_list(500)
 
 
+@api.get("/products/{product_id}/bundle")
+async def product_bundle(product_id: str):
+    """If this product is part of a course's related-products set (>=2), return the
+    'buy-together & save' bundle so the shop product page can upsell it too."""
+    programs = await db.programs.find({"related_product_ids": product_id}, {"_id": 0}).to_list(50)
+    for prog in programs:
+        rpids = prog.get("related_product_ids") or []
+        if len(rpids) < 2:
+            continue
+        prods = await db.products.find({"id": {"$in": rpids}}, {"_id": 0}).to_list(100)
+        by_id = {p["id"]: p for p in prods}
+        ordered = [by_id[pid] for pid in rpids if pid in by_id and (by_id[pid].get("type") in (None, "physical"))]
+        if len(ordered) < 2:
+            continue
+        return {"bundle": {
+            "program_id": prog["id"],
+            "program_title": prog.get("title", ""),
+            "discount_pct": int(prog.get("bundle_discount_pct") or 15),
+            "currency": (ordered[0].get("currency") or "eur"),
+            "products": ordered,
+        }}
+    return {"bundle": None}
+
+
 @api.get("/products/{product_id}")
 async def get_product(product_id: str):
     p = await db.products.find_one({"id": product_id}, {"_id": 0})

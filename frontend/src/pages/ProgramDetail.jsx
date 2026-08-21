@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Lock, Play, CheckCircle2, RotateCcw, Clock, Award, ShieldCheck, Sparkles, ClipboardCheck, ShoppingBag, Tag, PlayCircle } from "lucide-react";
+import { Lock, Play, CheckCircle2, RotateCcw, Clock, Award, ShieldCheck, Sparkles, ClipboardCheck, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { cart } from "@/lib/cart";
 import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
 import HeartButton from "@/components/HeartButton";
 import PaymentButtons from "@/components/PaymentButtons";
 import RelatedProducts from "@/components/RelatedProducts";
+import BundleOffer from "@/components/BundleOffer";
 
 export default function ProgramDetail() {
   const { id } = useParams();
@@ -165,7 +165,7 @@ export default function ProgramDetail() {
           </ul>
         </div>
 
-        <BundleUpsell p={p} />
+        <BundleOffer programId={p.id} programTitle={p.title} products={p.related_products} pct={p.bundle_discount_pct} currency={p.related_products?.[0]?.currency} />
         <RelatedProducts products={p.related_products} />
       </div>
     </div>

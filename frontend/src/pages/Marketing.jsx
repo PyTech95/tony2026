@@ -230,47 +230,32 @@ function Retreats() {
   );
 }
 
-const TESTIMONIALS = [
-  {
-    quote: "Tony's instruction is unlike anything I've received. He knows every muscle. Twenty years of practice and I've never gone this deep.",
-    author: "María Castillo",
-    role: "Student, Madrid",
-    photo: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=faces",
-  },
-  {
-    quote: "The Core 84 program rebuilt my back after a spinal injury. I can't imagine my life without this practice.",
-    author: "James Ridley",
-    role: "Perpetual Yogi, Los Angeles",
-    photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=faces",
-  },
-  {
-    quote: "A week in Málaga with Tony reset everything. I came home a different teacher — and a different person.",
-    author: "Sofia Larsen",
-    role: "Yoga Instructor, Barcelona",
-    photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop&crop=faces",
-  },
-];
-
 function Testimonials() {
+  const { t } = useTranslation();
+  const testimonials = [
+    { quote: t("tst.q1"), author: "María Castillo", role: t("tst.r1"), photo: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=faces" },
+    { quote: t("tst.q2"), author: "James Ridley", role: t("tst.r2"), photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=faces" },
+    { quote: t("tst.q3"), author: "Sofia Larsen", role: t("tst.r3"), photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop&crop=faces" },
+  ];
   return (
     <section id="testimonials" className="bg-[#F2F2EC] py-14 sm:py-20 lg:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="max-w-lg mb-8 sm:mb-12">
-          <div className="eyebrow mb-3">Students, past & present</div>
-          <h2 className="serif text-3xl sm:text-4xl leading-tight">Twenty thousand hours of teaching. A few thousand grateful students.</h2>
+          <div className="eyebrow mb-3">{t("tst.eyebrow")}</div>
+          <h2 className="serif text-3xl sm:text-4xl leading-tight">{t("tst.title")}</h2>
         </div>
         <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6" data-testid="marketing-testimonials">
-          {TESTIMONIALS.map((t, i) => (
+          {testimonials.map((tm, i) => (
             <li key={i} className="rounded-2xl sm:rounded-3xl bg-[#FAFAF7] p-6 sm:p-8 flex flex-col">
               <div className="serif text-4xl text-[#B25A45] leading-none">"</div>
-              <p className="text-[15px] text-[#1C221F] leading-relaxed mt-3 flex-1">{t.quote}</p>
+              <p className="text-[15px] text-[#1C221F] leading-relaxed mt-3 flex-1">{tm.quote}</p>
               <div className="mt-6 pt-4 border-t border-[#E5E6DF] flex items-center gap-3">
                 <div className="h-11 w-11 rounded-full overflow-hidden bg-[#F2F2EC] shrink-0">
-                  <img src={t.photo} alt={t.author} className="h-full w-full object-cover" loading="lazy" />
+                  <img src={tm.photo} alt={tm.author} className="h-full w-full object-cover" loading="lazy" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold truncate">{t.author}</div>
-                  <div className="text-xs text-[#6B7269] mt-0.5 truncate">{t.role}</div>
+                  <div className="text-sm font-semibold truncate">{tm.author}</div>
+                  <div className="text-xs text-[#6B7269] mt-0.5 truncate">{tm.role}</div>
                 </div>
               </div>
             </li>
@@ -283,14 +268,7 @@ function Testimonials() {
 
 function AppCTA({ onOpenApp }) {
   const { t } = useTranslation();
-  const features = [
-    "Live classes with Tony from anywhere",
-    "Full Core 26+/40/84 on demand",
-    "Class reminders 30 min before",
-    "Track streaks · celebrate milestones",
-    "Book retreats with a small deposit",
-    "Cancel anytime",
-  ];
+  const features = [t("appf.1"), t("appf.2"), t("appf.3"), t("appf.4"), t("appf.5"), t("appf.6")];
   return (
     <section className="mx-auto max-w-6xl px-4 sm:px-6 py-14 sm:py-20 lg:py-24">
       <div className="rounded-2xl sm:rounded-3xl bg-[#1C221F] text-[#FAFAF7] p-6 sm:p-10 lg:p-16 grid md:grid-cols-2 gap-8 md:gap-10 items-center">

@@ -8,11 +8,13 @@ import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
 import CartBadge from "@/components/CartBadge";
 import HeartButton from "@/components/HeartButton";
+import BundleOffer from "@/components/BundleOffer";
 
 export default function ProductDetail() {
   const { id } = useParams();
   const nav = useNavigate();
   const [p, setP] = useState(null);
+  const [bundle, setBundle] = useState(null);
   const [size, setSize] = useState(null);
   const [qty, setQty] = useState(1);
 
@@ -21,6 +23,7 @@ export default function ProductDetail() {
       setP(data);
       if (data.variants?.length) setSize(data.variants[0].size);
     }).catch(() => setP(false));
+    api.get(`/products/${id}/bundle`).then(({ data }) => setBundle(data?.bundle || null)).catch(() => setBundle(null));
   }, [id]);
 
   if (p === null) return <><PageHeader back /><Spinner /></>;
@@ -97,6 +100,16 @@ export default function ProductDetail() {
             Buy now
           </button>
         </div>
+
+        {bundle && (
+          <BundleOffer
+            programId={bundle.program_id}
+            programTitle={bundle.program_title}
+            products={bundle.products}
+            pct={bundle.discount_pct}
+            currency={bundle.currency}
+          />
+        )}
 
         {p.external_amazon_link && (
           <a

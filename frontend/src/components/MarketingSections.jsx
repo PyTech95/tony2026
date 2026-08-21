@@ -1,14 +1,16 @@
 import { Video, GraduationCap, Mountain, ShoppingBag, ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 // -------- Feature Strip (4 tiles: Live · Programs · Retreats · Shop) --------
 export function FeatureStrip() {
+  const { t } = useTranslation();
   const items = [
-    { icon: Video, label: "Live Zoom", desc: "Classes with Tony every week", to: "/schedule" },
-    { icon: GraduationCap, label: "Programs", desc: "Core 26+ · 40 · 84 on demand", to: "/programs" },
-    { icon: Mountain, label: "Retreats", desc: "Sixteen students · Málaga", to: "/workshops" },
-    { icon: ShoppingBag, label: "Shop", desc: "Mats, blocks, journals", to: "/shop" },
+    { icon: Video, label: t("fs.live_label"), desc: t("fs.live_desc"), to: "/schedule" },
+    { icon: GraduationCap, label: t("fs.programs_label"), desc: t("fs.programs_desc"), to: "/programs" },
+    { icon: Mountain, label: t("fs.retreats_label"), desc: t("fs.retreats_desc"), to: "/workshops" },
+    { icon: ShoppingBag, label: t("fs.shop_label"), desc: t("fs.shop_desc"), to: "/shop" },
   ];
   return (
     <section className="mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-12" data-testid="feature-strip">
@@ -29,11 +31,12 @@ export function FeatureStrip() {
 
 // -------- Stats Bar --------
 export function StatsBar() {
+  const { t } = useTranslation();
   const stats = [
-    ["50+", "years on the mat"],
-    ["84", "postures"],
-    ["3", "Core programs"],
-    ["6 / week", "live classes"],
+    ["50+", t("sb.years")],
+    ["84", t("sb.postures")],
+    ["3", t("sb.programs")],
+    ["6 / week", t("sb.live")],
   ];
   return (
     <section className="border-y border-[#E5E6DF] bg-[#FAFAF7]" data-testid="stats-bar">
@@ -51,15 +54,16 @@ export function StatsBar() {
 
 // -------- Three Value Props --------
 export function ValueProps() {
+  const { t } = useTranslation();
   const props = [
-    { n: "01", h: "Who teaches?", p: "Tony Sanchez, direct student of Bikram Choudhury and keeper of the Ghosh lineage. Fifty years teaching yoga precisely as it was taught to him." },
-    { n: "02", h: "Why is it small?", p: "Small live classes and sixteen-student retreats. So Tony sees every posture, every breath, every student." },
-    { n: "03", h: "What is ideal about it?", p: "Personalised. Progressive. Sustainable. A practice you return to for the rest of your life — not one you burn through and abandon." },
+    { n: "01", h: t("vp.h1"), p: t("vp.p1") },
+    { n: "02", h: t("vp.h2"), p: t("vp.p2") },
+    { n: "03", h: t("vp.h3"), p: t("vp.p3") },
   ];
   return (
     <section className="bg-[#B25A45] text-[#FAFAF7] py-14 sm:py-20 lg:py-24" data-testid="value-props">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <h2 className="serif text-3xl sm:text-4xl lg:text-5xl leading-tight mb-10 max-w-3xl">Personalised. Progressive. Sustainable.</h2>
+        <h2 className="serif text-3xl sm:text-4xl lg:text-5xl leading-tight mb-10 max-w-3xl">{t("vp.title")}</h2>
         <ul className="grid md:grid-cols-3 gap-6 md:gap-10">
           {props.map((v) => (
             <li key={v.n}>
@@ -75,36 +79,21 @@ export function ValueProps() {
 }
 
 // -------- FAQ ("Before you begin") --------
-const FAQS = [
-  {
-    q: "I'm a total beginner — is this for me?",
-    a: "Yes. In fact, the beginner has an advantage — no habits to unlearn. Start with Core 26+ and come to a live class. I will meet you exactly where you are and give you the modifications you need. Every posture has a first step; we begin there.",
-  },
-  {
-    q: "Do I need to attend the Zoom classes live?",
-    a: "No. Live is warmer — you can ask questions, and I can correct you — but every class is added to your library within a day. Watch it once, watch it ten times. The practice does not mind.",
-  },
-  {
-    q: "What's the difference between Core 26, 40 and 84?",
-    a: "Core 26+ is the foundation Bikram gave to the world, with the two postures he later removed. Core 40 refines what 26+ builds — deeper breath, slower entry, more precise alignment. Core 84 is the full Ghosh system, drawn from what Bishnu Ghosh taught his students in Kolkata. It is for practitioners with at least three years on the mat.",
-  },
-  {
-    q: "Can I cancel my membership at any time?",
-    a: "Yes. One tap in your profile — that's it. Your access continues until the paid period ends. No emails, no forms, no explaining yourself. Come back whenever you want.",
-  },
-  {
-    q: "Do retreats fill up quickly?",
-    a: "The house in Málaga only holds sixteen — I keep it that small on purpose so I can watch every student every day. Most retreats fill three or four months ahead. The €500 deposit is fully refundable up to sixty days before we begin.",
-  },
-];
-
 export function FAQ() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(0);
+  const FAQS = [
+    { q: t("faq.q1"), a: t("faq.a1") },
+    { q: t("faq.q2"), a: t("faq.a2") },
+    { q: t("faq.q3"), a: t("faq.a3") },
+    { q: t("faq.q4"), a: t("faq.a4") },
+    { q: t("faq.q5"), a: t("faq.a5") },
+  ];
   return (
     <section id="faq" className="bg-[#1C221F] text-[#FAFAF7] py-14 sm:py-20 lg:py-24" data-testid="marketing-faq">
       <div className="mx-auto max-w-4xl px-4 sm:px-6">
-        <div className="eyebrow !text-[#B25A45] mb-3">Common questions</div>
-        <h2 className="serif text-3xl sm:text-4xl lg:text-5xl leading-tight mb-8 sm:mb-10">Before you begin.</h2>
+        <div className="eyebrow !text-[#B25A45] mb-3">{t("faq.eyebrow")}</div>
+        <h2 className="serif text-3xl sm:text-4xl lg:text-5xl leading-tight mb-8 sm:mb-10">{t("faq.title")}</h2>
         <ul className="divide-y divide-white/10 border-y border-white/10">
           {FAQS.map((f, i) => (
             <li key={i}>

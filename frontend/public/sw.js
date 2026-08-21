@@ -1,5 +1,5 @@
-/* Tony Yoga service worker — network-first for API, cache-first for static assets, web push handler */
-const CACHE_VERSION = "tony-yoga-v2";
+/* Tony Yoga service worker — network-first for app code + API, cache-first for media, web push handler */
+const CACHE_VERSION = "tony-yoga-v3";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const OFFLINE_URL = "/offline.html";
@@ -35,7 +35,17 @@ self.addEventListener("fetch", (event) => {
 
   if (url.pathname.startsWith("/api/")) return;
 
-  if (request.mode === "navigate") {
+  // App code & markup (HTML/JS/CSS) — always network-first so new builds reach
+  // users immediately. Cache-first here would pin a stale JS bundle forever.
+  const dest = request.destination;
+  const isAppCode =
+    request.mode === "navigate" ||
+    dest === "document" ||
+    dest === "script" ||
+    dest === "style" ||
+    dest === "worker";
+
+  if (isAppCode) {
     event.respondWith(
       fetch(request)
         .then((res) => {
@@ -44,12 +54,15 @@ self.addEventListener("fetch", (event) => {
           return res;
         })
         .catch(() =>
-          caches.match(request).then((cached) => cached || caches.match(OFFLINE_URL)),
+          caches.match(request).then((cached) =>
+            cached || (request.mode === "navigate" ? caches.match(OFFLINE_URL) : undefined),
+          ),
         ),
     );
     return;
   }
 
+  // Media & other static assets (images, fonts) — cache-first with background fill.
   event.respondWith(
     caches.match(request).then(
       (cached) =>

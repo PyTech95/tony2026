@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 43 tested end-to-end: (a) backend GET /api/products/{id}/bundle, (b) product-page + course-page bundle upsell UI and add-to-cart with 15% discount, (c) Spanish toggle across all marketing homepage sections + free-class expanded modal, (d) asana play-badge (verified positively by temporarily setting a clip via admin API, then reverting). 9/9 backend tests pass; all requested frontend flows pass. No blocking defects. Payments/emails were NOT triggered (stopped at 'Continue to shipping'; free-class form never submitted).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PATCH /api/admin/asanas/{id}", "issue": "Unknown/misspelled fields (e.g. youtube_id, clip_start) are silently dropped and the endpoint still returns 200 with an unchanged doc — no 422. Makes admin mistakes invisible."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "FreeClassRibbon expanded modal", "issue": "Modal cannot be closed with the Escape key (only the X button / overlay click). Minor a11y gap; also blocks header clicks while open.", "selector": "[data-testid=\"ribbon-claim-btn\"]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "BundleOffer card (product + course pages)", "issues": ["All card copy is hardcoded English ('Complete your practice', 'Add the mat + book & save 15%', 'Save $17.55', 'Add bundle to cart'). In ES mode the card stays English — inconsistent with the 'finish Spanish' goal."]},
+      {"screen": "Marketing homepage in ES", "issues": ["Program difficulty chips still render English 'BEGINNER / INTERMEDIATE / ADVANCED'", "Section eyebrow 'PRACTICE IN MOTION' remains English"]},
+      {"screen": "/asanas in ES", "issues": ["Page copy (title 'Asana Index', description, search placeholder, category chips) is untranslated while the bottom nav is Spanish — mixed-language screen"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration43.py",
+    "/app/backend/tests/test_iteration43_clip.py",
+    "/app/test_reports/pytest/iter43.xml"
+  ],
+  "action_items": [
+    "i18n: move BundleOffer card strings into en/es locales so the bundle upsell translates.",
+    "i18n leftovers on homepage in ES: difficulty chips (Beginner/Intermediate/Advanced) and the 'Practice in motion' eyebrow; /asanas page copy still English.",
+    "Add Escape-key close to the free-class expanded modal.",
+    "Optional: make PATCH /api/admin/asanas reject unknown fields (422) instead of silently ignoring them."
+  ],
+  "critical_code_review_comments": [
+    "BundleOffer.jsx computes savings/bundle price client-side; the cart discount is recomputed from cart.setPromo pct — server-side validation of the promo pct at checkout should be confirmed so a tampered localStorage promo cannot inflate the discount.",
+    "product_bundle() returns the first matching program; if a product ever belongs to two course bundles the chosen discount is non-deterministic (iteration order of db.programs.find)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration43.py",
+    "/app/backend/tests/test_iteration43_clip.py"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "None persisted. Temporarily set a YouTube clip on the first seeded asana (Half Moon Pose) to verify the play badge; reverted youtube_url/cover_image/start/end and asserted revert.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "student@demo.com / Student2026! ; tony@tonyyoga.com / TonyYoga2026! (from /app/memory/test_credentials.md)",
+  "context_for_next_testing_agent": "Verified: /api/products/{id}/bundle returns bundle for mat (dc749b67...) and journal (84e6e494...) with program 7585a2ef..., 15%, 2 physical products totalling $117; the other 2 products (Tee, Cork Blocks) return bundle:null and their /shop pages show no bundle-upsell. Product-page bundle-add and course-page bundle-add both add mat+journal, navigate to /cart, show cart-discount-row '15% bundle discount −$17.55' and cart-subtotal $99.45 (stopped at 'Continue to shipping'). Spanish toggle verified on desktop viewport ONLY — data-testid lang-es/lang-en are hidden inside the hamburger on 390px mobile, so use 1920x1080 for language tests. Watch out: inner_text returns UPPERCASE for .eyebrow elements (CSS text-transform), so compare case-insensitively; EN strings are 'Personalised. Progressive. Sustainable.' and 'Students, past & present'. The free-class modal overlay (z-70) intercepts header clicks — close it before clicking the lang pill. ES selection persists in localStorage key ty_lang across reloads.",
+  "rca_of_the_issue": "No functional failures reproduced. Two earlier apparent failures were test-side: (1) Testimonials eyebrow 'mismatch' was CSS uppercase transform; (2) asana clip PATCH 'not persisting' was due to using youtube_id/clip_start instead of the API contract fields youtube_url/start_seconds/end_seconds."
+}
