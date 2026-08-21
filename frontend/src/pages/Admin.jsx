@@ -1656,7 +1656,7 @@ function StudentsPane() {
 
 function RetreatsPane() {
   const empty = { title: "", system: "Core 40", description: "", location: "Villa San Pedro · Málaga, Spain",
-    start_date: "", end_date: "", price_eur: 1600, deposit_eur: 500, capacity: 14, cover_image: "" };
+    start_date: "", end_date: "", price_eur: 1600, deposit_eur: 500, capacity: 14, cover_image: "", gallery: "" };
   const [rows, setRows] = useState(null);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
@@ -1675,6 +1675,7 @@ function RetreatsPane() {
         price_eur: Number(form.price_eur) || 0,
         deposit_eur: Number(form.deposit_eur) || 0,
         capacity: Number(form.capacity) || 14,
+        gallery: (form.gallery || "").split("\n").map((s) => s.trim()).filter(Boolean),
         start_date: new Date(form.start_date).toISOString(),
         end_date: new Date(form.end_date).toISOString(),
       });
@@ -1714,6 +1715,7 @@ function RetreatsPane() {
           <label className="text-xs text-[#6B7269]">Capacity<input data-testid="retreat-capacity" type="number" className={ic} value={form.capacity} onChange={(e) => set("capacity", e.target.value)} /></label>
         </div>
         <input data-testid="retreat-cover" className={ic} value={form.cover_image} onChange={(e) => set("cover_image", e.target.value)} placeholder="Cover image URL (optional)" />
+        <textarea data-testid="retreat-gallery" rows={3} className={ic} value={form.gallery} onChange={(e) => set("gallery", e.target.value)} placeholder="Gallery image URLs — one per line (villa, terrace, practice room…)" />
         <button onClick={create} disabled={busy} data-testid="retreat-create" className="pill pill-primary w-full">{busy ? "Publishing…" : "Publish retreat"}</button>
       </div>
 

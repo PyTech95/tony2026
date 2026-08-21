@@ -37,15 +37,23 @@ async def reserve_retreat(payload: RetreatReserve, user: dict = Depends(get_curr
     active = await db.workshop_registrations.count_documents(
         {"workshop_id": payload.workshop_id, "status": {"$in": ["deposit_paid", "paid_in_full", "pending_deposit"]}}
     )
-    if active >= workshop.get("capacity", 14):
-        raise HTTPException(400, "Retreat full")
+    # A seat that was offered to this user (promoted from the waitlist) bypasses the cap.
+    offered = await db.workshop_registrations.find_one(
+        {"user_id": user["id"], "workshop_id": payload.workshop_id, "status": "seat_offered"}
+    )
+    if active >= workshop.get("capacity", 14) and not offered:
+        raise HTTPException(400, "Retreat full — join the waitlist instead.")
 
     existing = await db.workshop_registrations.find_one(
-        {"user_id": user["id"], "workshop_id": payload.workshop_id, "status": {"$ne": "cancelled"}},
+        {"user_id": user["id"], "workshop_id": payload.workshop_id, "status": {"$nin": ["cancelled", "waitlisted", "seat_offered"]}},
         {"_id": 0},
     )
     if existing:
         return existing
+    # Clear any prior waitlist/offer entry — it's converting into a real reservation.
+    await db.workshop_registrations.delete_many(
+        {"user_id": user["id"], "workshop_id": payload.workshop_id, "status": {"$in": ["waitlisted", "seat_offered"]}}
+    )
 
     price = float(workshop.get("price_eur", 1600.0))
     deposit = float(workshop.get("deposit_eur") or DEPOSIT_EUR)
@@ -86,6 +94,108 @@ async def my_retreats(user: dict = Depends(get_current_user)):
         {"user_id": user["id"]}, {"_id": 0},
     ).sort("created_at", -1).to_list(200)
     return rows
+
+
+class WaitlistJoin(BaseModel):
+    workshop_id: str
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+
+async def _seats_taken(workshop_id: str) -> int:
+    return await db.workshop_registrations.count_documents(
+        {"workshop_id": workshop_id, "status": {"$in": ["deposit_paid", "paid_in_full", "pending_deposit", "seat_offered"]}}
+    )
+
+
+@api.post("/retreats/waitlist")
+async def join_waitlist(payload: WaitlistJoin, user: dict = Depends(get_current_user)):
+    workshop = await db.workshops.find_one({"id": payload.workshop_id})
+    if not workshop:
+        raise HTTPException(404, "Retreat not found")
+    existing = await db.workshop_registrations.find_one(
+        {"user_id": user["id"], "workshop_id": payload.workshop_id, "status": {"$ne": "cancelled"}}, {"_id": 0},
+    )
+    if existing:
+        return existing  # already reserved or already waitlisted
+    if await _seats_taken(payload.workshop_id) < workshop.get("capacity", 14):
+        raise HTTPException(400, "Seats are available — reserve directly instead of waitlisting.")
+    waiting = await db.workshop_registrations.count_documents(
+        {"workshop_id": payload.workshop_id, "status": "waitlisted"}
+    )
+    doc = {
+        "id": gen_id(), "user_id": user["id"], "workshop_id": payload.workshop_id,
+        "workshop_title": workshop.get("title"), "workshop_start_date": workshop.get("start_date"),
+        "name": payload.name or user.get("name"), "email": (payload.email or user.get("email") or "").lower(),
+        "phone": payload.phone, "status": "waitlisted", "waitlist_position": waiting + 1,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.workshop_registrations.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.get("/retreats/{workshop_id}/availability")
+async def retreat_availability(workshop_id: str):
+    workshop = await db.workshops.find_one({"id": workshop_id}, {"_id": 0})
+    if not workshop:
+        raise HTTPException(404, "Retreat not found")
+    taken = await _seats_taken(workshop_id)
+    cap = workshop.get("capacity", 14)
+    waiting = await db.workshop_registrations.count_documents({"workshop_id": workshop_id, "status": "waitlisted"})
+    return {"capacity": cap, "taken": taken, "seats_left": max(0, cap - taken), "is_full": taken >= cap, "waitlist_count": waiting}
+
+
+@api.post("/retreats/{reservation_id}/cancel")
+async def cancel_reservation(reservation_id: str, user: dict = Depends(get_current_user)):
+    reg = await db.workshop_registrations.find_one({"id": reservation_id})
+    if not reg:
+        raise HTTPException(404, "Reservation not found")
+    if reg["user_id"] != user["id"] and user.get("role") not in ("admin", "support"):
+        raise HTTPException(403, "Forbidden")
+    await db.workshop_registrations.update_one(
+        {"id": reservation_id}, {"$set": {"status": "cancelled", "cancelled_at": now_utc().isoformat()}}
+    )
+    await _promote_waitlist(reg["workshop_id"])
+    return {"ok": True}
+
+
+async def _promote_waitlist(workshop_id: str):
+    """If a seat is free, offer it to the earliest person on the waitlist + notify them."""
+    workshop = await db.workshops.find_one({"id": workshop_id})
+    if not workshop:
+        return
+    if await _seats_taken(workshop_id) >= workshop.get("capacity", 14):
+        return
+    nxt = await db.workshop_registrations.find_one(
+        {"workshop_id": workshop_id, "status": "waitlisted"}, sort=[("created_at", 1)]
+    )
+    if not nxt:
+        return
+    await db.workshop_registrations.update_one(
+        {"id": nxt["id"]}, {"$set": {"status": "seat_offered", "seat_offered_at": now_utc().isoformat()}}
+    )
+    title = workshop.get("title", "retreat")
+    try:
+        from routers.push import notify_user
+        await notify_user(
+            nxt["user_id"], f"A seat opened · {title}",
+            "You're off the waitlist! Tap to reserve your seat.", f"/workshops/{workshop_id}",
+        )
+    except Exception as e:
+        _logger.warning(f"waitlist push failed: {e}")
+    try:
+        from email_service import send_email
+        if nxt.get("email"):
+            await send_email(
+                nxt["email"], f"A seat opened for {title} 🌿",
+                f"<h3>Good news — a seat just opened for {title}.</h3>"
+                f"<p>You're first on the waitlist. Reserve your seat with your deposit in-app before someone else does.</p>"
+                f"<p>— Tony</p>",
+            )
+    except Exception as e:
+        _logger.warning(f"waitlist email failed: {e}")
 
 
 @api.get("/retreats/{reservation_id}")

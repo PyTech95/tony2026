@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 33 — verified the two new retreat features (Retreat Photos gallery + Waitlist/auto-promotion) end to end on the external preview URL. Backend: 7/7 pytest cases pass (gallery persist via POST + PATCH /api/admin/workshops, GET /api/retreats/{id}/availability shape + 404, POST /api/retreats/waitlist 400-when-seats-available / 401-unauth / position-1-when-full / idempotent, POST /api/retreats/{res_id}/cancel -> earliest waitlisted auto-promoted to seat_offered, seat_offered bypasses capacity on reserve and clears waitlist/offer rows). Frontend: admin Retreats pane 'Gallery image URLs' textarea publishes a retreat whose gallery persists and renders; WorkshopDetail shows 'The villa & practice' gallery with both unsplash images actually loading (naturalWidth 800), 'Full — join the waitlist' button on a capacity-1 full retreat, POST succeeds and the \"You're #1 on the waitlist\" note appears and persists across reload, and after an admin cancel the student sees '🎉 A seat opened — reserve now' which opens the reservation form with both PayPal/Stripe buttons. One real bug found: the reserve form no longer prefills the logged-in user's name/email. All TEST_ retreats and their registrations were deleted; only the 4 seeded retreats remain and student@demo.com has no leftover registrations.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "WorkshopDetail reserve form",
+        "issue": "Name and Email inputs are EMPTY for a logged-in user (both the normal Reserve path and the seat_offered claim path). form state is initialised once with user?.name/user?.email while `user` is still null during async auth hydration, and never re-synced, so the user must retype both or beforeReservationCheckout() rejects with 'Name and email required'. Fix: add a useEffect that patches form.name/form.email when `user` resolves (or initialise lazily once user is available).",
+        "selector": "[data-testid=\"reserve-name\"], [data-testid=\"reserve-email\"]",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Admin Console · Retreats publish form",
+        "issues": [
+          "Start/End date use the native browser date input (type=\"date\") rather than the shadcn calendar used elsewhere — inconsistent with the design system (pre-existing, not part of this task)",
+          "Retreat delete uses window.confirm() native dialog instead of an in-app AlertDialog (pre-existing)"
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration34.py",
+    "/app/backend/tests/fixture_iteration34.py",
+    "/app/test_reports/pytest/iter34.xml"
+  ],
+  "action_items": [
+    "Prefill WorkshopDetail reserve form name/email from the auth user once it hydrates (useEffect on `user`) — currently blank for logged-in students."
+  ],
+  "critical_code_review_comments": [
+    "routers/retreats.py: `_logger` is defined at the bottom of the module but referenced inside _promote_waitlist's except blocks — fine at runtime (module-level binding exists by call time) but fragile; move the logger to the top of the file.",
+    "join_waitlist returns 200 with the existing row when the user already has a reservation/waitlist entry — the frontend treats that as success; acceptable but a 409 would be more explicit.",
+    "server.py CORS: allow_credentials=False with allow_origins default '*' while login also sets an httpOnly cookie — the cookie is unusable cross-origin by design (app uses Bearer token); consider explicit origins + credentials if cookie auth is ever relied upon.",
+    "frontend/src/pages/Admin.jsx is ~1864 lines — should be split into per-pane modules (>700 line guideline)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration34.py",
+    "/app/backend/tests/fixture_iteration34.py"
+  ],
+  "success_rate": { "backend": "100% (7/7)", "frontend": "95% (all waitlist/gallery assertions pass; 1 prefill bug)" },
+  "seed_data_creation": "Created and then fully deleted: TEST_Waitlist Retreat (pytest fixture, capacity 1), TEST_UI Waitlist Villa (capacity 1, 2 gallery URLs, admin holder reservation), TEST_Admin UI Gallery Retreat (created via admin UI, capacity 3). All associated workshop_registrations removed; verified /api/admin/workshops lists only the 4 seeded retreats and /api/retreats/mine for student@demo.com is empty.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "admin tony@tonyyoga.com / TonyYoga2026!, student student@demo.com / Student2026! (from /app/memory/test_credentials.md)",
+  "context_for_next_testing_agent": "Reusable helpers: /app/backend/tests/test_iteration34.py (full waitlist+gallery API regression, self-cleaning) and /app/backend/tests/fixture_iteration34.py setup|cancel|cleanup which creates a capacity-1 TEST retreat with a gallery, occupies its seat as admin (setup), frees it to trigger promotion (cancel), and deletes all TEST_ retreats + regs (cleanup). Auth playbook spot-checks done: bcrypt hash is $2b$12$, login sets HttpOnly/Secure access_token cookie; lockout not re-exercised (verified in earlier iterations) to avoid locking real accounts.",
+  "rca_of_the_issue": "Prefill bug: WorkshopDetail initialises useState({name: user?.name, email: user?.email}) on first render; the auth context resolves the user asynchronously after that render, and there is no effect syncing the form, so the fields stay empty."
+}

@@ -16,6 +16,8 @@ export default function WorkshopDetail() {
   const [w, setW] = useState(null);
   const [step, setStep] = useState("view");
   const [reservationId, setReservationId] = useState(null);
+  const [avail, setAvail] = useState(null);
+  const [myReg, setMyReg] = useState(null);
   const [form, setForm] = useState({
     name: user?.name || "",
     email: user?.email || "",
@@ -26,9 +28,29 @@ export default function WorkshopDetail() {
     notes: "",
   });
 
+  const refreshAvail = () => api.get(`/retreats/${id}/availability`).then(({ data }) => setAvail(data)).catch(() => {});
+  useEffect(() => {
+    // Sync reserve form with the auth user once it hydrates (avoids blank name/email).
+    if (user) setForm((f) => ({ ...f, name: f.name || user.name || "", email: f.email || user.email || "" }));
+  }, [user]);
   useEffect(() => {
     api.get(`/workshops/${id}`).then(({ data }) => setW(data)).catch(() => setW(false));
-  }, [id]);
+    refreshAvail();
+    if (user) {
+      api.get("/retreats/mine").then(({ data }) => {
+        setMyReg((data || []).find((r) => r.workshop_id === id && r.status !== "cancelled") || null);
+      }).catch(() => {});
+    }
+  }, [id, user]);
+
+  const joinWaitlist = async () => {
+    if (!user) { toast("Sign in to join the waitlist."); nav("/login"); return; }
+    try {
+      const { data } = await api.post("/retreats/waitlist", { workshop_id: id });
+      setMyReg(data);
+      toast.success("You're on the waitlist — we'll notify you the moment a seat opens.");
+    } catch (e) { toast.error(e?.response?.data?.detail || "Could not join waitlist"); }
+  };
 
   const beforeReservationCheckout = async () => {
     if (!user) { toast("Sign in to reserve."); nav("/login"); return false; }
@@ -47,7 +69,9 @@ export default function WorkshopDetail() {
   if (w === null) return <><PageHeader back /><Spinner /></>;
   if (w === false) return <><PageHeader back title="Not found" /></>;
 
-  const spotsLeft = Math.max(0, (w.capacity || 14) - (w.registered_count || 0));
+  const spotsLeft = avail ? avail.seats_left : Math.max(0, (w.capacity || 14) - (w.registered_count || 0));
+  const isFull = avail ? avail.is_full : spotsLeft === 0;
+  const myStatus = myReg?.status;
 
   return (
     <div data-testid="workshop-detail" className="pb-6">
@@ -88,6 +112,18 @@ export default function WorkshopDetail() {
               </div>
             </div>
 
+            {w.gallery?.length > 0 && (
+              <div data-testid="workshop-gallery">
+                <div className="eyebrow mb-2">The villa & practice</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {w.gallery.map((src, i) => (
+                    <img key={i} src={src} alt="" loading="lazy" data-testid={`workshop-gallery-img-${i}`}
+                      className="h-36 w-full rounded-2xl object-cover" />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="rounded-3xl bg-[#1C221F] text-[#FAFAF7] p-6">
               <div className="eyebrow !text-[#B25A45] mb-2">Reserve your seat</div>
               <div className="flex items-baseline gap-3">
@@ -97,14 +133,23 @@ export default function WorkshopDetail() {
               <p className="text-xs text-white/60 mt-2">
                 Full price €{Math.round(w.price_eur)} · Balance of €{Math.round(w.price_eur - (w.deposit_eur ?? 500))} due 30 days before start.
               </p>
-              <button
-                onClick={() => setStep("form")}
-                disabled={spotsLeft === 0}
-                data-testid="workshop-reserve-btn"
-                className="pill !bg-[#B25A45] !text-white w-full mt-5"
-              >
-                {spotsLeft === 0 ? "Full — join waitlist" : `Reserve with €${w.deposit_eur ?? 500} deposit`} <ArrowRight className="h-4 w-4" />
-              </button>
+              {myStatus === "waitlisted" ? (
+                <div data-testid="workshop-waitlisted-note" className="mt-5 rounded-2xl bg-white/10 px-4 py-3 text-sm text-white/80">
+                  You're <strong>#{myReg.waitlist_position}</strong> on the waitlist. We'll email &amp; notify you the moment a seat opens.
+                </div>
+              ) : myStatus === "seat_offered" ? (
+                <button onClick={() => setStep("form")} data-testid="workshop-claim-seat-btn" className="pill !bg-[#B25A45] !text-white w-full mt-5">
+                  🎉 A seat opened — reserve now <ArrowRight className="h-4 w-4" />
+                </button>
+              ) : isFull ? (
+                <button onClick={joinWaitlist} data-testid="workshop-join-waitlist-btn" className="pill !bg-white/15 !text-white w-full mt-5">
+                  Full — join the waitlist{avail?.waitlist_count ? ` (${avail.waitlist_count} waiting)` : ""}
+                </button>
+              ) : (
+                <button onClick={() => setStep("form")} data-testid="workshop-reserve-btn" className="pill !bg-[#B25A45] !text-white w-full mt-5">
+                  Reserve with €{w.deposit_eur ?? 500} deposit <ArrowRight className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </>
         )}

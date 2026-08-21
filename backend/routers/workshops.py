@@ -1,5 +1,5 @@
 """Workshops & retreats router."""
-from typing import Optional
+from typing import Optional, List
 from fastapi import HTTPException, Depends, Request
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timezone
@@ -24,6 +24,7 @@ class WorkshopCreate(BaseModel):
     schedule: Optional[str] = "9:00–1:00 pm / 3:00–6:00 pm"
     capacity: int = 14
     deposit_eur: float = 500.0
+    gallery: Optional[List[str]] = None
     is_active: bool = True
 
 
@@ -42,6 +43,7 @@ class WorkshopUpdate(BaseModel):
     schedule: Optional[str] = None
     capacity: Optional[int] = None
     deposit_eur: Optional[float] = None
+    gallery: Optional[List[str]] = None
     is_active: Optional[bool] = None
 
 

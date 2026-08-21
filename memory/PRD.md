@@ -187,3 +187,11 @@ Still-open (spec 'future'/optional, not built): leaderboard admin toggle UI, gif
 - Secure login: brute-force lockout in auth.py (login_attempts, 5 fails/IP+email → 15-min 429; success clears). Uses X-Forwarded-For IP (ingress rotates request.client.host).
 - VERIFIED: testing agent iter33 backend 11/11 + 5/5 direct-invocation PASS. Fixed the 2 hardcoded-deposit copy bugs after. Admin Retreats UI confirmed via screenshot.
 - Store build (#4): NOT doable server-side — requires macOS/Xcode + Android Studio + developer accounts; documented in /app/MOBILE_BUILD.md.
+
+## Iteration 34 (2026-06) — Retreat gallery + waitlist (+ confirmed email/balance-pay already existed)
+- #1 Email SMTP: ALREADY built (admin Settings Email·SMTP fields + email_enabled toggle + POST /admin/email/test). No build needed — user just enters SMTP creds.
+- #2 Deposit/balance payments: ALREADY built (payments item_type workshop_balance; Profile "Pay €balance" button → PayPal/Stripe → fulfillment marks paid_in_full).
+- #3 Retreat Photos: workshops gallery: Optional[List[str]] (Create+Update). Admin RetreatsPane "Gallery URLs" textarea (retreat-gallery). WorkshopDetail renders workshop-gallery grid.
+- #4 Waitlist: retreats.py join_waitlist (POST /retreats/waitlist), retreat_availability (GET /retreats/{id}/availability), cancel_reservation (POST /retreats/{id}/cancel) + _promote_waitlist (earliest waitlisted -> seat_offered + notify_user push + email). reserve bypasses capacity for seat_offered users and clears waitlist/offer rows. WorkshopDetail: join-waitlist / waitlisted-note / claim-seat buttons driven by availability + /retreats/mine.
+- Fixed: WorkshopDetail reserve form now prefills name/email once auth user hydrates (useEffect on user).
+- VERIFIED: testing agent iter34 backend 7/7 + full waitlist promotion flow curl-verified; frontend gallery + waitlist UI pass; prefill fix confirmed via screenshot.
