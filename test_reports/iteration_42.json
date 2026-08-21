@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 42 — verified the course-page restructure (Core 26+ rename, top demo/intro video, locked 'Library' for non-enrolled) on backend + frontend. Backend: 9/10 pytest cases pass (the one failure is a real DATA issue: the programs collection contains 3 duplicate copies of each seeded course; the duplicate copies have no playable video so demo_video is null). Frontend verified anon, admin/staff and admin editor flows plus asana + bundle regressions. Test data restored (demo_video_url set back to blank).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PATCH /api/admin/programs/{id}", "issue": "update_program strips all None values, so a null demo_video_url (and any other field) can never be cleared. Combined with CoursesPane sending `form.demo_video_url || null`, an admin CANNOT blank out a demo video once set — confirmed via UI: after clearing the field and saving, the public page still embedded dQw4w9WgXcQ. Fix: send \"\" from the UI, or allow explicit nulls for nullable fields in the PATCH handler."},
+      {"endpoint": "GET /api/programs", "issue": "Returns 9 programs — 3 duplicates each of 'Core 26+', 'Core 40 Fitness', 'Core 84 Asana Mastery' (ids 68d23fe3…, e11e6f99…, f109473b…, f7caf8e1…, 0f3e838a…, 3efc6bed…). Duplicates render on the public /programs list and their course pages show the 'Demo video coming soon' empty state because their lesson videos have no youtube_id/source_url. Seed is not idempotent for programs."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ProgramDetail lesson row 'Locked' pill", "issue": "Locked pill has no data-testid (had to assert on text). Suggest lesson-locked-{id} for stable testing.", "selector": "[data-testid='program-lessons'] li", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Admin course editor → clear demo video", "issue": "Saving a blank 'Demo / intro video' field silently does nothing (value persists); no fallback restore possible from the UI.", "affected_selectors": ["[data-testid='course-demo-video']", "[data-testid='course-save']"]}
+    ],
+    "design_issues": [
+      {"screen": "/programs listing (anon)", "issues": ["Same three courses listed three times due to duplicate DB records — looks broken to the user."]},
+      {"screen": "Duplicate course pages (e.g. /programs/68d23fe3-…)", "issues": ["Demo block shows dark 'Demo video coming soon' placeholder because those seeded lessons have no video ids."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration42.py", "/app/test_reports/pytest/iter42.xml", "/app/backend/tests/inspect_iteration42.py", "/app/backend/tests/cleanup_iteration42.py"],
+  "action_items": [
+    "Allow clearing demo_video_url: CoursesPane should send \"\" instead of null (or PATCH should accept explicit nulls for nullable fields).",
+    "De-duplicate the programs collection (6 stray duplicate course docs) and make seed.py idempotent by title/id — duplicates are visible on the public /programs page.",
+    "Optional: add data-testid to the lesson 'Locked' pill."
+  ],
+  "critical_code_review_comments": [
+    "content.py get_program does `import re as _re` and defines _demo_yt inside the request handler — move to module scope (import cost + duplication with the frontend parseYouTubeId regex).",
+    "update_program's `if v is not None` filter is a general footgun for every optional/nullable field on ProgramUpdate, not just demo_video_url.",
+    "ProgramDetail.jsx hasAccess duplicates access logic already computed server-side (viewer + is_unlocked); consider exposing a single `viewer.has_access` flag from the API so UI and backend cannot drift."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration42.py", "/app/backend/tests/inspect_iteration42.py", "/app/backend/tests/inspect42_student.py", "/app/backend/tests/cleanup_iteration42.py"],
+  "success_rate": {"backend": "90%", "frontend": "95%"},
+  "seed_data_creation": "None. Temporarily set Core 26+ demo_video_url to a YouTube URL for the admin-field test, then restored it to \"\" via cleanup_iteration42.py (verified public demo_video back to EeZrRo1PNmU/start 578).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "Admin tony@tonyyoga.com / TonyYoga2026!; Student student@demo.com / Student2026! (both worked; login response key is `token`, not access_token)",
+  "context_for_next_testing_agent": "Verified PASSING: (a) anon /programs/7585a2ef-…: title 'Core 26+', demo-video block with poster EeZrRo1PNmU, click→demo-video-iframe src .../embed/EeZrRo1PNmU?start=578, header 'LIBRARY · 26 LESSONS' (CSS-uppercased — use case-insensitive matching), library-locked-note visible, 0 lesson-play-* and 26 'Locked' pills, program-purchase + bundle-upsell ($99.45) intact; (b) admin/staff: demo block present, 26/26 lesson-play-* links, no locked note; (c) student@demo.com non-enrolled: viewer.owns_program=false → all locked (server unlocks lesson 1 as free preview but UI hides play, as intended); (d) Core 40 (24) & Core 84 (18) same structure; (e) /asanas 12 cards, search 'cobra' → 1. Known-dead placeholder clip EeZrRo1PNmU is expected. Open items: duplicate program docs and the un-clearable demo_video_url.",
+  "rca_of_the_issue": "Un-clearable demo field: CoursesPane.jsx line ~333 sends `demo_video_url: form.demo_video_url || null`; content.py update_program (line 131) builds updates with `if v is not None`, dropping the null so the previous value stays in Mongo. Duplicate courses: seed.py inserts programs without an idempotency guard, so repeated seed runs created 3 copies; only the first copies have videos with youtube_id, hence demo_video=null on the copies."
+}

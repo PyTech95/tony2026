@@ -130,7 +130,7 @@ async def seed():
     if admin_user:
         # Seed the Core series programs only if they aren't present yet (idempotent, additive).
         # No destructive deletes: existing content is always preserved on startup/deploy.
-        if not await db.programs.find_one({"title": "Core 26+ Series"}):
+        if not await db.programs.find_one({"title": "Core 26+"}):
             COVERS = {
                 "core26": "https://customer-assets.emergentagent.com/job_yogasage/artifacts/ayolpmc7_3.png",
                 "core40": "https://customer-assets.emergentagent.com/job_yogasage/artifacts/lphigt25_71.jpg",
@@ -141,7 +141,7 @@ async def seed():
             programs_spec = [
                 {
                     "key": "core26",
-                    "title": "Core 26+ Series",
+                    "title": "Core 26+",
                     "description": "The foundational 26-pose hot yoga sequence. Perfect for beginners and those looking to master the essential poses that form the basis of all yoga practice. 200 hours.",
                     "level": "beginner", "style": "Core 26+",
                     "duration_weeks": 12, "price": 199.0, "currency": "eur",

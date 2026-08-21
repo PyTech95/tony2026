@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Lock, Play, CheckCircle2, RotateCcw, Clock, Award, ShieldCheck, Sparkles, ClipboardCheck, ShoppingBag, Tag } from "lucide-react";
+import { Lock, Play, CheckCircle2, RotateCcw, Clock, Award, ShieldCheck, Sparkles, ClipboardCheck, ShoppingBag, Tag, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -35,6 +35,8 @@ export default function ProgramDetail() {
   if (p === false) return <><PageHeader back title="Not found" /></>;
 
   const lessons = p.lessons || [];
+  const viewer = p.viewer || {};
+  const hasAccess = viewer.is_staff || viewer.owns_program || p.price_model === "free" || (p.price_model === "membership" && viewer.has_active_membership);
   const completedCount = lessons.filter((l) => progress[l.video?.id]?.completed).length;
   const allDone = lessons.length > 0 && completedCount === lessons.length;
 
@@ -66,6 +68,8 @@ export default function ProgramDetail() {
       <PageHeader eyebrow={`${p.level} · ${p.duration_weeks} weeks`} title={p.title} back testId="programdetail-header" action={<HeartButton targetType="program" targetId={p.id} />} />
 
       <div className="mx-auto max-w-2xl px-5 space-y-6">
+        <DemoVideo demo={p.demo_video} hasAccess={hasAccess} />
+
         <p className="text-[15px] text-[#545E56] leading-relaxed">{p.description}</p>
 
         {p.benefits?.length > 0 && (
@@ -84,11 +88,18 @@ export default function ProgramDetail() {
 
         <div>
           <div className="flex items-center justify-between mb-3">
-            <div className="eyebrow">Curriculum · {lessons.length} lessons</div>
+            <div className="eyebrow">Library · {lessons.length} lessons</div>
             {user && completedCount > 0 && (
               <div data-testid="curriculum-progress" className="text-xs font-semibold text-[#839682]">{completedCount}/{lessons.length} done</div>
             )}
           </div>
+
+          {!hasAccess && lessons.length > 0 && (
+            <div data-testid="library-locked-note" className="mb-3 flex items-center gap-2 rounded-2xl bg-[#F7ECE8] border border-[#E7C4B9] px-4 py-3 text-xs text-[#8A4433]">
+              <Lock className="h-3.5 w-3.5 shrink-0" />
+              <span>Watch the demo above. Enrol to unlock all {lessons.length} lessons in this library.</span>
+            </div>
+          )}
 
           {user && allDone && (
             <button onClick={claimCertificate} disabled={claiming} data-testid="claim-certificate" className="w-full mb-4 rounded-3xl bg-[#1C221F] text-[#FAFAF7] p-5 flex items-center gap-4 hover:bg-[#0F1211] transition text-left">
@@ -129,7 +140,7 @@ export default function ProgramDetail() {
                         {canResume && <span className="text-[#B25A45] font-semibold">Resume</span>}
                       </div>
                     </div>
-                    {l.is_unlocked ? (
+                    {hasAccess && l.is_unlocked ? (
                       vid && (
                         <Link to={`/library/${vid}`} data-testid={`lesson-play-${l.id}`} className="pill pill-ghost !py-1.5 !px-3 !text-xs shrink-0">
                           {canResume ? <><RotateCcw className="h-3.5 w-3.5" /> Resume</> : <><Play className="h-3.5 w-3.5" /> Play</>}
@@ -140,8 +151,8 @@ export default function ProgramDetail() {
                         <Clock className="h-3 w-3" /> Unlocks {new Date(l.available_on).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                       </div>
                     ) : (
-                      <div className="h-8 px-3 rounded-full bg-[#F2F2EC] flex items-center gap-1 text-[10px] text-[#6B7269] uppercase tracking-widest shrink-0">
-                        <Lock className="h-3 w-3" /> {l.is_free_preview ? "Preview" : "Locked"}
+                      <div data-testid={`lesson-locked-${l.id}`} className="h-8 px-3 rounded-full bg-[#F2F2EC] flex items-center gap-1 text-[10px] text-[#6B7269] uppercase tracking-widest shrink-0">
+                        <Lock className="h-3 w-3" /> Locked
                       </div>
                     )}
                   </div>
@@ -156,6 +167,58 @@ export default function ProgramDetail() {
 
         <BundleUpsell p={p} />
         <RelatedProducts products={p.related_products} />
+      </div>
+    </div>
+  );
+}
+
+function DemoVideo({ demo, hasAccess }) {
+  const [playing, setPlaying] = useState(false);
+  const yid = demo?.youtube_id;
+  const start = demo?.start_seconds || 0;
+
+  if (!yid) {
+    return (
+      <div data-testid="demo-video-empty" className="rounded-3xl bg-[#1C221F] text-white/80 aspect-video flex flex-col items-center justify-center gap-2">
+        <PlayCircle className="h-10 w-10 text-white/40" />
+        <div className="text-sm">Demo video coming soon</div>
+      </div>
+    );
+  }
+
+  const embed = `https://www.youtube.com/embed/${yid}?start=${start}&autoplay=1&rel=0&modestbranding=1`;
+  const poster = `https://img.youtube.com/vi/${yid}/hqdefault.jpg`;
+
+  return (
+    <div data-testid="demo-video" className="space-y-2">
+      <div className="relative aspect-video rounded-3xl overflow-hidden bg-black shadow-lg">
+        {playing ? (
+          <iframe
+            title="Course demo"
+            src={embed}
+            data-testid="demo-video-iframe"
+            className="absolute inset-0 h-full w-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        ) : (
+          <button
+            onClick={() => setPlaying(true)}
+            data-testid="demo-video-play"
+            className="group absolute inset-0 h-full w-full"
+          >
+            <img src={poster} alt="Course demo" className="absolute inset-0 h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-16 w-16 rounded-full bg-white/95 flex items-center justify-center group-hover:scale-110 transition shadow-xl">
+                <Play className="h-7 w-7 text-[#B25A45] ml-1" />
+              </div>
+            </div>
+            <div className="absolute bottom-3 left-4 text-white text-xs font-bold uppercase tracking-widest bg-black/40 rounded-full px-3 py-1">
+              {hasAccess ? "Course intro" : "Watch the free demo"}
+            </div>
+          </button>
+        )}
       </div>
     </div>
   );

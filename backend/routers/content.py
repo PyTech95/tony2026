@@ -236,6 +236,25 @@ async def get_program(program_id: str, user: Optional[dict] = Depends(get_option
         "is_authenticated": bool(user),
         "is_staff": is_staff,
     }
+    # Public demo/intro video — playable by everyone (enrolled or not).
+    # Admin-set demo_video_url wins; otherwise fall back to the first lesson clip.
+    import re as _re
+    def _demo_yt(u):
+        if not u:
+            return None
+        m = _re.search(r"(?:youtube\.com/(?:watch\?v=|embed/|shorts/|live/)|youtu\.be/)([\w-]{11})", str(u))
+        if m:
+            return m.group(1)
+        s = str(u).strip()
+        return s if _re.fullmatch(r"[\w-]{11}", s) else None
+
+    demo_id = _demo_yt(program.get("demo_video_url"))
+    demo_start = 0
+    if not demo_id and lessons:
+        first_v = videos.get(lessons[0]["video_id"]) or {}
+        demo_id = first_v.get("youtube_id") or _demo_yt(first_v.get("source_url") or first_v.get("video_url"))
+        demo_start = int(first_v.get("start_seconds") or 0)
+    program["demo_video"] = {"youtube_id": demo_id, "start_seconds": demo_start} if demo_id else None
     # Related products (books, mats, etc.) curated for this course.
     rpids = program.get("related_product_ids") or []
     if rpids:

@@ -88,6 +88,7 @@ class ProgramCreate(BaseModel):
     currency: str = "usd"
     cover_image: Optional[str] = None
     trailer_url: Optional[str] = None
+    demo_video_url: Optional[str] = None
     benefits: Optional[List[str]] = None
     included_in_plans: Optional[List[str]] = None
     related_product_ids: Optional[List[str]] = None
@@ -106,6 +107,7 @@ class ProgramUpdate(BaseModel):
     currency: Optional[str] = None
     cover_image: Optional[str] = None
     trailer_url: Optional[str] = None
+    demo_video_url: Optional[str] = None
     benefits: Optional[List[str]] = None
     included_in_plans: Optional[List[str]] = None
     related_product_ids: Optional[List[str]] = None
