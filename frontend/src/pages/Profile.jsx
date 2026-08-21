@@ -190,6 +190,12 @@ export default function Profile() {
             </button>
           </div>
           <p className="mt-2 text-[11px] text-[#9AA096]">Redeem a gift card to add store credit to your account.</p>
+          {credit > 0 && (
+            <Link to="/shop" data-testid="profile-credit-apply" className="mt-3 flex items-center justify-between rounded-2xl bg-[#FBF6EC] border border-[#E0D3B8] px-4 py-2.5 hover:bg-[#F5EDDD] transition-colors">
+              <span className="text-[13px] text-[#5C5346]">Your <span className="font-bold text-[#1C221F]">€{credit.toFixed(2)}</span> is ready — apply it at checkout</span>
+              <span className="text-[13px] font-semibold text-[#B25A45]">Shop →</span>
+            </Link>
+          )}
         </section>
 
         {/* Retreats */}

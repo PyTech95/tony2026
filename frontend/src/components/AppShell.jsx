@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import NotificationBell from "@/components/NotificationBell";
 import LanguageToggle from "@/components/LanguageToggle";
+import CreditIndicator from "@/components/CreditIndicator";
 
 const MEMBER_ITEMS = [
   { to: "/home", labelKey: "nav.home", icon: Home, tid: "nav-home" },
@@ -79,6 +80,7 @@ export default function AppShell() {
         >
           {!hideNav && (
             <div className="fixed right-4 z-50 flex items-center gap-2" style={{ top: isStaff ? "3rem" : "0.75rem" }}>
+              {!isStaff && <CreditIndicator />}
               <LanguageToggle />
               {user && <NotificationBell />}
             </div>

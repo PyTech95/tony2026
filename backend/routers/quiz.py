@@ -10,7 +10,7 @@ import os
 from fastapi import Request, HTTPException
 from pydantic import BaseModel
 
-from core import api, db, gen_id, now_utc, get_optional_user
+from core import api, db, gen_id, now_utc, get_optional_user, require_role
 
 LEVEL_RANK = {"beginner": 0, "intermediate": 1, "advanced": 2}
 
@@ -176,3 +176,34 @@ async def quiz_lead(payload: QuizLead, request: Request):
         sent = False
     await db.quiz_leads.update_one({"id": lead["id"]}, {"$set": {"emailed": sent}})
     return {"ok": True, "emailed": sent, "already_member": bool(existing_user)}
+
+
+@api.get("/admin/quiz-leads")
+async def admin_quiz_leads(request: Request):
+    """Captured Find Your Path leads for the admin, enriched with the recommended
+    program/plan and whether the email has since created an account."""
+    await require_role(request, ["admin"])
+    leads = await db.quiz_leads.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    prog_ids = list({l.get("program_id") for l in leads if l.get("program_id")})
+    plan_ids = list({l.get("plan_id") for l in leads if l.get("plan_id")})
+    progs = {p["id"]: p.get("title") for p in await db.programs.find(
+        {"id": {"$in": prog_ids}}, {"_id": 0, "id": 1, "title": 1}).to_list(500)}
+    plans = {p["id"]: p for p in await db.membership_plans.find(
+        {"id": {"$in": plan_ids}}, {"_id": 0}).to_list(500)}
+    emails = list({l["email"] for l in leads if l.get("email")})
+    members = set()
+    async for u in db.users.find({"email": {"$in": emails}}, {"_id": 0, "email": 1}):
+        members.add(u["email"])
+    out = []
+    for l in leads:
+        pl = plans.get(l.get("plan_id")) or {}
+        out.append({
+            **l,
+            "program_title": progs.get(l.get("program_id")),
+            "plan_name": pl.get("name"),
+            "plan_tier": pl.get("tier"),
+            "signed_up": l.get("email") in members,
+        })
+    total = len(out)
+    converted = sum(1 for x in out if x["signed_up"])
+    return {"leads": out, "total": total, "converted": converted, "pending": total - converted}
