@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Lock, CheckCircle2, Scissors, Play, Pause } from "lucide-react";
+import { Lock, CheckCircle2, Scissors, Play, Pause, Volume2, VolumeX, Maximize, Minimize, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import PageHeader from "@/components/PageHeader";
@@ -35,8 +35,18 @@ export default function VideoPlayer() {
   const [autoAdvance, setAutoAdvance] = useState(false);
   const [countdown, setCountdown] = useState(6);
   const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [isFs, setIsFs] = useState(false);
+  const [resumeDismissed, setResumeDismissed] = useState(false);
+
+  useEffect(() => {
+    const onFs = () => setIsFs(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
 
   const ytHostRef = useRef(null);
+  const wrapRef = useRef(null);
   const playerRef = useRef(null);
   const videoRef = useRef(null);
   const timerRef = useRef(null);
@@ -47,7 +57,7 @@ export default function VideoPlayer() {
   useEffect(() => {
     let mounted = true;
     setReady(false);
-    setClipPct(0); setAutoAdvance(false); setCountdown(6); setNextLesson(null);
+    setClipPct(0); setAutoAdvance(false); setCountdown(6); setNextLesson(null); setResumeDismissed(false);
     (async () => {
       const res = await api.get(`/videos/${id}`).catch(() => ({ data: false }));
       if (!mounted) return;
@@ -123,6 +133,7 @@ export default function VideoPlayer() {
             try { playerRef.current.seekTo(beginAt, true); } catch { /* noop */ }
             try { playerRef.current.pauseVideo(); } catch { /* noop */ }
             setPlaying(false);
+            try { setMuted(!!playerRef.current.isMuted?.()); } catch { /* noop */ }
             if (end && end > start) setClipPct(Math.min(100, Math.max(0, ((beginAt - start) / (end - start)) * 100)));
           },
           onStateChange: (e) => {
@@ -207,6 +218,59 @@ export default function VideoPlayer() {
     setClipPct(pct * 100);
   };
 
+  const toggleMute = (e) => {
+    e?.stopPropagation?.();
+    if (youtube && playerRef.current) {
+      try {
+        if (playerRef.current.isMuted()) { playerRef.current.unMute(); setMuted(false); }
+        else { playerRef.current.mute(); setMuted(true); }
+      } catch { /* noop */ }
+    } else if (videoRef.current) {
+      videoRef.current.muted = !videoRef.current.muted;
+      setMuted(videoRef.current.muted);
+    }
+  };
+
+  const toggleFullscreen = (e) => {
+    e?.stopPropagation?.();
+    const el = wrapRef.current; if (!el) return;
+    try {
+      if (document.fullscreenElement) { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); }
+      else { (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el); }
+    } catch { /* noop */ }
+  };
+
+  const restartClip = () => {
+    setResumeDismissed(true); setClipPct(0);
+    if (youtube && playerRef.current) { try { playerRef.current.seekTo(segStart, true); playerRef.current.playVideo(); } catch { /* noop */ } }
+    else if (videoRef.current) { try { videoRef.current.currentTime = segStart; const p = videoRef.current.play(); if (p && p.catch) p.catch(() => {}); } catch { /* noop */ } }
+  };
+
+  const continueResume = () => {
+    setResumeDismissed(true);
+    if (youtube && playerRef.current) { try { playerRef.current.seekTo(resume, true); playerRef.current.playVideo(); } catch { /* noop */ } }
+    else if (videoRef.current) { try { videoRef.current.currentTime = resume; const p = videoRef.current.play(); if (p && p.catch) p.catch(() => {}); } catch { /* noop */ } }
+  };
+
+  const BottomBar = () => (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[7] flex items-center justify-between px-3 pb-3">
+      <button
+        type="button" onClick={toggleMute} data-testid="player-mute"
+        aria-label={muted ? "Unmute" : "Mute"}
+        className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition hover:bg-black/75"
+      >
+        {muted ? <VolumeX className="h-[18px] w-[18px]" /> : <Volume2 className="h-[18px] w-[18px]" />}
+      </button>
+      <button
+        type="button" onClick={toggleFullscreen} data-testid="player-fullscreen"
+        aria-label={isFs ? "Exit fullscreen" : "Fullscreen"}
+        className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition hover:bg-black/75"
+      >
+        {isFs ? <Minimize className="h-[18px] w-[18px]" /> : <Maximize className="h-[18px] w-[18px]" />}
+      </button>
+    </div>
+  );
+
   const ClipChip = () => clipLabel ? (
     <div
       data-testid="clip-duration-chip"
@@ -222,9 +286,21 @@ export default function VideoPlayer() {
       <PageHeader eyebrow={v.style} title={v.title} back testId="video-header" />
 
       <div className="mx-auto max-w-3xl px-5 space-y-5">
+        {playable && resume > 5 && !done && !resumeDismissed && (
+          <div data-testid="resume-banner" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#1C221F] px-4 py-3 text-white">
+            <div className="flex items-center gap-2">
+              <RotateCcw className="h-4 w-4 text-[#E4A788]" />
+              <span className="text-sm">Resume at <span className="font-semibold text-[#E4A788]">{secToMMSS(resume)}</span>?</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button data-testid="resume-restart" onClick={restartClip} className="rounded-full px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white">Start over</button>
+              <button data-testid="resume-continue" onClick={continueResume} className="rounded-full bg-[#B25A45] px-4 py-1.5 text-xs font-semibold hover:bg-[#9d4d3b] transition">Resume</button>
+            </div>
+          </div>
+        )}
         {playable ? (
           youtube ? (
-            <div className="relative rounded-3xl overflow-hidden bg-black aspect-video" data-testid="video-youtube">
+            <div ref={wrapRef} className="relative rounded-3xl overflow-hidden bg-black aspect-video" data-testid="video-youtube">
               <ClipChip />
               <div ref={ytHostRef} className="pointer-events-none h-full w-full" />
               {/* Custom control layer: hides YouTube's native scrubber/branding and
@@ -244,9 +320,10 @@ export default function VideoPlayer() {
                   {playing ? <Pause className="h-7 w-7" fill="currentColor" /> : <Play className="h-7 w-7 translate-x-0.5" fill="currentColor" />}
                 </span>
               </button>
+              <BottomBar />
             </div>
           ) : (
-            <div className="relative rounded-3xl overflow-hidden bg-black aspect-video" data-testid="video-native-wrap">
+            <div ref={wrapRef} className="relative rounded-3xl overflow-hidden bg-black aspect-video" data-testid="video-native-wrap">
               <ClipChip />
               <video
                 ref={videoRef}
@@ -295,6 +372,7 @@ export default function VideoPlayer() {
                   {playing ? <Pause className="h-7 w-7" fill="currentColor" /> : <Play className="h-7 w-7 translate-x-0.5" fill="currentColor" />}
                 </span>
               </button>
+              <BottomBar />
             </div>
           )
         ) : (

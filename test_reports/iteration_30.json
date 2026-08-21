@@ -1,0 +1,47 @@
+{
+  "summary": "Frontend-only verification of the 3 new custom-player features in VideoPlayer.jsx (Mute/Unmute, Fullscreen, Resume banner) plus regression of the clean-clip player. Real YouTube media cannot load in this sandbox, so window.YT was stubbed via add_init_script (instrumented fake IFrame Player capturing playerVars and recording playVideo/pauseVideo/seekTo/mute/unMute/isMuted/destroy with a test-driven clock + onReady/onStateChange); HTMLElement.prototype.requestFullscreen and document.exitFullscreen were also spied. Progress records were seeded through POST /api/progress. ALL assertions PASSED (14/14) — no functional defects found. NOTE: student@demo.com has no membership so every library video renders as 'Members-only practice' (video-locked) for that account; testing was therefore done with tony@tonyyoga.com (admin, unlocked). The iteration-29 defects are both fixed: video.play() rejection is now caught (0 unhandled rejections) and clipPct is now seeded from the resume position (bar showed 40% / 2:00 for resume 720 on the 600-900 clip).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "VideoPlayer /library/{id}", "issues": ["Clip bar labels (10px #9AA096 on #FAFAF7) still ~2.3:1 contrast — carried over from iterations 28/29, not part of this iteration's scope.", "Fullscreen button aria-label stays 'Fullscreen' even while in fullscreen and the icon never switches to Minimize (no fullscreenchange listener) — minor a11y/affordance gap."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_30.json"],
+  "action_items": [
+    "Optional (minor): listen for the 'fullscreenchange' event and swap the Maximize icon / aria-label ('Exit fullscreen') so the button reflects the actual fullscreen state.",
+    "Optional (minor): initialise the `muted` state from playerRef.isMuted() in onReady — if a browser forces muted autoplay the Volume2 icon would be out of sync with real audio state.",
+    "Unrelated but worth confirming with product: student@demo.com has no membership, so the whole segmented-lesson player is unreachable with the documented student credentials (all videos show the members-only lock)."
+  ],
+  "critical_code_review_comments": [
+    "toggleMute/toggleFullscreen correctly call e.stopPropagation() and the buttons sit at z-[7] with pointer-events-auto above the z-[5] play overlay — verified no play/pause side effect on click for both YouTube and direct <video> paths.",
+    "continueResume() seeks to `resume`, which the YT player already started at (playerVars.start = resume) — a harmless redundant seek, but it also means 'Resume' cannot recover if resume is outside [segStart,segEnd]; the beginAt guard already clamps that at build time, so no bug today.",
+    "The resume banner is dismissed only via local state (resumeDismissed); the underlying progress record is untouched, so a page reload re-shows it. Intended, but worth confirming with product.",
+    "VideoPlayer.jsx is now 455 lines with two near-duplicate control-overlay blocks (yt/native) — extract a shared <PlayOverlay/> + reuse BottomBar to satisfy DRY (repeat of iteration-29 comment)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "100% (14/14 assertions passed)"},
+  "seed_data_creation": "watch_progress rows created via POST /api/progress for tony@tonyyoga.com and student@demo.com on video efa56e07 (720/3/completed variants). All watch_progress rows deleted after testing (collection now empty).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "tony@tonyyoga.com / TonyYoga2026! (used — only account with unlocked videos); student@demo.com / Student2026! (login works but all videos are locked: no membership)",
+  "detailed_results": [
+    "PASS playerVars = {start, controls:0, disablekb:1, fs:0, rel:0, modestbranding:1, playsinline:1, iv_load_policy:3, cc_load_policy:1} — native YouTube controls remain hidden.",
+    "PASS resume-banner: seeded 720s not-completed -> banner visible ABOVE the player (bounding-box verified), text 'Resume at 12:00? Start over Resume'.",
+    "PASS player-mute click #1 -> stub mute() called, aria-label 'Mute'->'Unmute', icon class lucide-volume-x, NO playVideo/pauseVideo, yt-toggle-play aria-label unchanged.",
+    "PASS player-mute click #2 -> unMute() called, aria-label back to 'Mute', icon lucide-volume-2, no play-state change.",
+    "PASS player-fullscreen click -> requestFullscreen() invoked on the wrapper element data-testid='video-youtube' (wrapRef), no play-state change.",
+    "PASS with document.fullscreenElement forced non-null -> click calls document.exitFullscreen().",
+    "PASS resume-continue -> ['seekTo:720.00','playVideo'] and banner removed from DOM.",
+    "PASS resume-restart (after reseeding 720) -> ['seekTo:600.00','playVideo'], clip-progress-fill width 0%, clip-elapsed '0:00', banner removed.",
+    "PASS banner ABSENT when the record is completed:true (video-completed badge shown instead).",
+    "PASS banner ABSENT when saved seconds = 3 (<=5) and when there is no/zero progress.",
+    "PASS regression yt-toggle-play: playVideo -> aria 'Pause', pauseVideo -> aria 'Play'.",
+    "PASS regression clip-only seek: click at 50% of clip-progress-track -> seekTo:750.00 (inside [600,900]), fill 50%.",
+    "PASS regression segment end lock: clock 899.9 -> ['pauseVideo','seekTo:900.00'], Completed badge, autoadvance-overlay shown and dismissible via 'Stay'. clip-duration-chip reads '5:00 clip'.",
+    "PASS direct <video> path (3570c056): el.controls === false; player-mute flips video.muted true/false with matching aria-label and video stays paused; player-fullscreen calls requestFullscreen on data-testid='video-native-wrap'. Zero unhandled promise rejections on both paths (iteration-29 play() defect fixed)."
+  ],
+  "context_for_next_testing_agent": "Keep reusing the window.YT add_init_script stub (iterations 27-30) — YouTube iframes and the mixkit mp4 are blocked in this sandbox. Use tony@tonyyoga.com for player testing: student@demo.com has no membership so every video is locked. Spy fullscreen by overriding HTMLElement.prototype.requestFullscreen / document.exitFullscreen. Remember to delete watch_progress rows (db from backend/.env DB_NAME, collection watch_progress) after simulated playback — I left it empty.",
+  "rca_of_the_issue": "No defects reproduced this iteration. Only environment constraint: YouTube/mp4 media cannot play in the sandbox, mitigated with the YT stub; and the documented student account lacks a membership, which blocks the player UI for that user."
+}
