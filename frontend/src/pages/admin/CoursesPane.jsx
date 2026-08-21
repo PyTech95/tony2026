@@ -12,7 +12,21 @@ function LessonsEditor({ programId }) {
   const [form, setForm] = useState(null); // single lesson { id?, title, youtube_url, start, end, is_free_preview, is_private }
   const [bulk, setBulk] = useState(null); // bulk mode { youtube_url, text, free_preview_first, is_private }
   const [busy, setBusy] = useState(false);
+  const [coverBusy, setCoverBusy] = useState(false);
   const lc = "w-full rounded-2xl border border-[#E5E6DF] px-4 py-2.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#B25A45]";
+
+  const uploadCover = async (file) => {
+    if (!file) return;
+    setCoverBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const { data } = await api.post("/admin/uploads", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      set("cover_image", `${API_BASE}/files/${data.path}`);
+      toast.success("Cover photo uploaded");
+    } catch (e) { toast.error(e?.response?.data?.detail || "Upload failed"); }
+    finally { setCoverBusy(false); }
+  };
 
   const load = async () => {
     try { const { data } = await api.get(`/admin/programs/${programId}/lessons`); setLessons(data); }
@@ -20,13 +34,15 @@ function LessonsEditor({ programId }) {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [programId]);
 
-  const openNew = () => { setBulk(null); setForm({ title: "", youtube_url: "", start: "0:00", end: "", is_free_preview: false, is_private: false, requires_submission: false, assignment_prompt: "", pass_threshold: 60, max_attempts: 0 }); };
+  const openNew = () => { setBulk(null); setForm({ title: "", description: "", cover_image: "", youtube_url: "", start: "0:00", end: "", is_free_preview: false, is_private: false, requires_submission: false, assignment_prompt: "", pass_threshold: 60, max_attempts: 0 }); };
   const openBulk = () => { setForm(null); setBulk({ youtube_url: "", text: "0:00 Intro & warm-up\n10:00 Standing series\n22:30 Floor series\n40:00 Final relaxation", free_preview_first: true, is_private: false }); };
   const openEdit = (l) => {
     setBulk(null);
     setForm({
       id: l.id,
       title: l.video?.title || "",
+      description: l.video?.description || "",
+      cover_image: l.video?.cover_image || "",
       youtube_url: l.video?.source_url || l.video?.video_url || "",
       start: secToMMSS(l.video?.start_seconds || 0),
       end: l.video?.end_seconds ? secToMMSS(l.video.end_seconds) : "",
@@ -48,7 +64,7 @@ function LessonsEditor({ programId }) {
     const end = form.end ? mmssToSec(form.end) : null;
     if (end != null && end <= start) return toast.error("End time must be after start time.");
     setBusy(true);
-    const body = { title: form.title.trim(), youtube_url: form.youtube_url.trim(), start_seconds: start, end_seconds: end, is_free_preview: form.is_free_preview, is_private: form.is_private, requires_submission: !!form.requires_submission, assignment_prompt: form.requires_submission ? (form.assignment_prompt || "") : "", pass_threshold: Number(form.pass_threshold) || 60, max_attempts: Math.max(0, Number(form.max_attempts) || 0) };
+    const body = { title: form.title.trim(), description: form.description || "", cover_image: form.cover_image || null, youtube_url: form.youtube_url.trim(), start_seconds: start, end_seconds: end, is_free_preview: form.is_free_preview, is_private: form.is_private, requires_submission: !!form.requires_submission, assignment_prompt: form.requires_submission ? (form.assignment_prompt || "") : "", pass_threshold: Number(form.pass_threshold) || 60, max_attempts: Math.max(0, Number(form.max_attempts) || 0) };
     try {
       if (form.id) { await api.patch(`/admin/lessons/${form.id}`, body); toast.success("Lesson updated."); }
       else { await api.post(`/admin/programs/${programId}/lessons`, body); toast.success("Lesson added."); }
@@ -154,6 +170,28 @@ function LessonsEditor({ programId }) {
             <div className="text-xs text-[#6B7269]">Lesson thumbnail (auto)</div>
           </div>
         )}
+
+        <Field label="Cover photo" hint="Shown on the pose card and as the video poster. Overrides the auto YouTube thumbnail.">
+          <div className="flex items-center gap-3">
+            <div className="relative h-16 w-28 shrink-0 rounded-xl overflow-hidden bg-[#F2F2EC] border border-[#E5E6DF]">
+              {form.cover_image
+                ? <img src={form.cover_image} alt="" className="h-full w-full object-cover" data-testid="lesson-cover-preview" />
+                : <div className="h-full w-full flex items-center justify-center text-[10px] text-[#9AA29B]">No cover</div>}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label data-testid="lesson-cover-upload" className={`text-xs font-semibold cursor-pointer rounded-full px-3 py-1.5 w-max ${coverBusy ? "bg-[#F2F2EC] text-[#9AA096]" : "bg-[#B25A45] text-white hover:opacity-90"}`}>
+                {coverBusy ? "Uploading…" : (form.cover_image ? "Replace photo" : "Upload photo")}
+                <input type="file" accept="image/*" hidden disabled={coverBusy} onChange={(e) => { uploadCover(e.target.files?.[0]); e.target.value = ""; }} />
+              </label>
+              {form.cover_image && <button type="button" onClick={() => set("cover_image", "")} data-testid="lesson-cover-remove" className="text-xs text-[#6B7269] hover:text-[#B25A45] w-max">Remove</button>}
+            </div>
+          </div>
+        </Field>
+
+        <Field label="Description" hint="Explain the pose / lesson — alignment, breath, benefits, cautions. Shown to students below the video.">
+          <textarea data-testid="lesson-description" rows={5} className={lc} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="e.g. Pranamasana (Prayer Pose) — stand tall, palms together at the heart. Grounds the practice and centres the breath…" />
+        </Field>
+
         <div className="grid grid-cols-2 gap-3">
           <Field label="Start (m:ss)"><input data-testid="lesson-start" className={lc} value={form.start} onChange={(e) => set("start", e.target.value)} placeholder="0:00" /></Field>
           <Field label="End (m:ss) — optional"><input data-testid="lesson-end" className={lc} value={form.end} onChange={(e) => set("end", e.target.value)} placeholder="10:00" /></Field>
@@ -248,6 +286,7 @@ function LessonsEditor({ programId }) {
 function CoursesPane() {
   const { user } = useAuth();
   const [list, setList] = useState(null);
+  const [products, setProducts] = useState([]);
   const [editing, setEditing] = useState(null); // program object being edited, or {__new:true}
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -255,7 +294,10 @@ function CoursesPane() {
   const load = async () => {
     try { const { data } = await api.get("/programs"); setList(data); } catch { setList([]); }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.get("/products").then(({ data }) => setProducts(data)).catch(() => setProducts([]));
+  }, []);
 
   const openEdit = (p) => {
     setEditing(p);
@@ -264,15 +306,20 @@ function CoursesPane() {
       style: p.style || "Hatha", duration_weeks: p.duration_weeks ?? 4,
       price: p.price ?? 0, currency: p.currency || "eur", price_model: p.price_model || "one_time",
       cover_image: p.cover_image || "", benefits: (p.benefits || []).join("\n"),
+      related_product_ids: p.related_product_ids || [],
       drip_enabled: !!p.drip_enabled, drip_interval_days: p.drip_interval_days ?? 7,
     });
   };
   const openNew = () => {
     setEditing({ __new: true });
-    setForm({ title: "", description: "", level: "beginner", style: "Hatha", duration_weeks: 4, price: 0, currency: "eur", price_model: "one_time", cover_image: "", benefits: "", drip_enabled: false, drip_interval_days: 7 });
+    setForm({ title: "", description: "", level: "beginner", style: "Hatha", duration_weeks: 4, price: 0, currency: "eur", price_model: "one_time", cover_image: "", benefits: "", related_product_ids: [], drip_enabled: false, drip_interval_days: 7 });
   };
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const toggleProduct = (pid) => setForm((f) => {
+    const cur = f.related_product_ids || [];
+    return { ...f, related_product_ids: cur.includes(pid) ? cur.filter((x) => x !== pid) : [...cur, pid] };
+  });
 
   const save = async () => {
     if (!form.title.trim() || !form.description.trim()) return toast.error("Title and description are required.");
@@ -282,6 +329,7 @@ function CoursesPane() {
       duration_weeks: Number(form.duration_weeks) || 1, price: Number(form.price) || 0,
       currency: form.currency, price_model: form.price_model, cover_image: form.cover_image || null,
       benefits: form.benefits.split("\n").map((b) => b.trim()).filter(Boolean),
+      related_product_ids: form.related_product_ids || [],
       drip_enabled: !!form.drip_enabled, drip_interval_days: Number(form.drip_interval_days) || 7,
     };
     try {
@@ -332,6 +380,26 @@ function CoursesPane() {
           </Field>
           <Field label="Cover image URL"><input data-testid="course-cover" className={inputCls2} value={form.cover_image} onChange={(e) => set("cover_image", e.target.value)} placeholder="https://…" /></Field>
           <Field label="Benefits (one per line)"><textarea data-testid="course-benefits" rows={4} className={inputCls2} value={form.benefits} onChange={(e) => set("benefits", e.target.value)} /></Field>
+
+          <Field label="Related products" hint="Books, mats & gear to sell alongside this course — shown on the course page and under each lesson video.">
+            {products.length === 0 ? (
+              <p className="text-xs text-[#6B7269]">No products yet — add some in the Shop first.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2" data-testid="course-products">
+                {products.map((pr) => {
+                  const on = (form.related_product_ids || []).includes(pr.id);
+                  return (
+                    <button key={pr.id} type="button" onClick={() => toggleProduct(pr.id)} data-testid={`course-product-${pr.id}`}
+                      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition ${on ? "border-[#B25A45] bg-[#F7ECE8] text-[#B25A45] font-semibold" : "border-[#E5E6DF] text-[#545E56] hover:border-[#B25A45]"}`}>
+                      {pr.images?.[0] && <img src={pr.images[0]} alt="" className="h-5 w-5 rounded object-cover" />}
+                      <span className="truncate max-w-[140px]">{pr.title}</span>
+                      {on && <Check className="h-3.5 w-3.5" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </Field>
           <div className="rounded-2xl bg-[#F7F7F2] border border-[#E5E6DF] p-4 space-y-3">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="checkbox" data-testid="course-drip" checked={!!form.drip_enabled} onChange={(e) => set("drip_enabled", e.target.checked)} className="h-4 w-4 accent-[#B25A45]" />

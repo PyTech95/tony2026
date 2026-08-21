@@ -8,6 +8,7 @@ import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
 import HeartButton from "@/components/HeartButton";
 import PaymentButtons from "@/components/PaymentButtons";
+import RelatedProducts from "@/components/RelatedProducts";
 
 export default function ProgramDetail() {
   const { id } = useParams();
@@ -151,6 +152,8 @@ export default function ProgramDetail() {
             })}
           </ul>
         </div>
+
+        <RelatedProducts products={p.related_products} />
       </div>
     </div>
   );

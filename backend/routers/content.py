@@ -236,6 +236,14 @@ async def get_program(program_id: str, user: Optional[dict] = Depends(get_option
         "is_authenticated": bool(user),
         "is_staff": is_staff,
     }
+    # Related products (books, mats, etc.) curated for this course.
+    rpids = program.get("related_product_ids") or []
+    if rpids:
+        prods = await db.products.find({"id": {"$in": rpids}}, {"_id": 0}).to_list(100)
+        by_id = {p["id"]: p for p in prods}
+        program["related_products"] = [by_id[pid] for pid in rpids if pid in by_id]
+    else:
+        program["related_products"] = []
     return program
 
 

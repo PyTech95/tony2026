@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
+import RelatedProducts from "@/components/RelatedProducts";
 import { isYouTube, parseYouTubeId, secToMMSS } from "@/lib/youtube";
 
 // Lazy-load the YouTube IFrame Player API once.
@@ -38,6 +39,7 @@ export default function VideoPlayer() {
   const [muted, setMuted] = useState(false);
   const [isFs, setIsFs] = useState(false);
   const [resumeDismissed, setResumeDismissed] = useState(false);
+  const [relatedProducts, setRelatedProducts] = useState([]);
 
   useEffect(() => {
     const onFs = () => setIsFs(!!document.fullscreenElement);
@@ -57,7 +59,7 @@ export default function VideoPlayer() {
   useEffect(() => {
     let mounted = true;
     setReady(false);
-    setClipPct(0); setAutoAdvance(false); setCountdown(6); setNextLesson(null); setResumeDismissed(false);
+    setClipPct(0); setAutoAdvance(false); setCountdown(6); setNextLesson(null); setResumeDismissed(false); setRelatedProducts([]);
     (async () => {
       const res = await api.get(`/videos/${id}`).catch(() => ({ data: false }));
       if (!mounted) return;
@@ -75,6 +77,7 @@ export default function VideoPlayer() {
           const ls = prog.lessons || [];
           const idx = ls.findIndex((l) => l.video?.id === id);
           if (mounted && idx >= 0 && idx + 1 < ls.length) setNextLesson(ls[idx + 1]);
+          if (mounted) setRelatedProducts(prog.related_products || []);
         } catch { /* noop */ }
       }
       if (mounted) setReady(true);
@@ -433,6 +436,8 @@ export default function VideoPlayer() {
           </div>
           <p className="text-[15px] text-[#545E56] leading-relaxed">{v.description}</p>
         </div>
+
+        <RelatedProducts products={relatedProducts} title="Shop this practice" />
       </div>
 
       {autoAdvance && nextLesson && (

@@ -90,6 +90,7 @@ class ProgramCreate(BaseModel):
     trailer_url: Optional[str] = None
     benefits: Optional[List[str]] = None
     included_in_plans: Optional[List[str]] = None
+    related_product_ids: Optional[List[str]] = None
     drip_enabled: bool = False
     drip_interval_days: int = 7
 
@@ -106,6 +107,7 @@ class ProgramUpdate(BaseModel):
     trailer_url: Optional[str] = None
     benefits: Optional[List[str]] = None
     included_in_plans: Optional[List[str]] = None
+    related_product_ids: Optional[List[str]] = None
     drip_enabled: Optional[bool] = None
     drip_interval_days: Optional[int] = None
 

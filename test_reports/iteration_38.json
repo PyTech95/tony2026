@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 38 — verified admin lesson DESCRIPTION + COVER PHOTO upload, course RELATED PRODUCTS picker, and the two display surfaces (ProgramDetail 'Shop for this practice', VideoPlayer description + 'Shop this practice'). Backend: 7/7 pytest passed (uploads, lesson PATCH persistence, program related_product_ids persistence + related_products expansion, bad-id filtering, reorder regression, lesson save without description). Frontend: full admin UI flow + both public surfaces verified end-to-end at 390x844 (app shell). No functional defects found.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "VideoPlayer /library/{id}", "issues": ["Seeded YouTube video (EeZrRo1PNmU) renders 'Video unavailable' in the embed — pre-existing seed/embed issue, unrelated to this feature; description + Shop-this-practice render correctly below it."]},
+      {"screen": "Admin console at desktop width", "issues": ["/admin only renders the console shell at mobile-ish widths; at 1920px the marketing site layout is shown. Expected app behaviour, noted for future test scripts (use 390x844)."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration38.py", "/app/backend/tests/cleanup_iteration38.py", "/app/test_reports/pytest/iter38.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routers/uploads.py:75 hardcodes every upload into '{APP_NAME}/retreats/{uuid}.ext', so lesson cover photos land under a 'retreats/' prefix. Cosmetic only, but consider a folder/kind query param for cleaner object-storage organisation.",
+    "CoursesPane.jsx is growing large (450 lines with LessonsEditor inline); consider extracting LessonsEditor into its own file before it exceeds the 700-line threshold.",
+    "GET /programs returns full program docs (including related_product_ids) which the admin editor relies on — fine, but keep in mind the public list now leaks related_product_ids; harmless today."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration38.py", "/app/backend/tests/cleanup_iteration38.py"],
+  "success_rate": { "backend": "100% (7/7)", "frontend": "100% (all 5 requested flows)" },
+  "seed_data_creation": "Uploaded 2 tiny test PNGs to object storage (files/tony-yoga/retreats/*.png). Set Core 26+ Series related_product_ids = [Cork Yoga Mat, Yogi's Daily Journal] (left in place — needed for display). TEST_UI lesson description/cover reverted via cleanup_iteration38.py.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "tony@tonyyoga.com / TonyYoga2026! (admin)",
+  "context_for_next_testing_agent": "Admin console only renders at mobile viewport (390x844); at 1920 width the public marketing layout renders instead. Login via /login then page.goto('/admin') keeps the token (localStorage ty_auth_token, remember defaults true). Course used for testing: Core 26+ Series id 7585a2ef-01a1-4854-84f5-1eba68cfea66 (26 lessons, 2 related products). Product chips selected state = class contains bg-[#F7ECE8]; allow ~300ms after click before reading class. Run /app/backend/tests/test_iteration38.py for related-products / lesson-description regression.",
+  "rca_of_the_issue": "N/A — no failures. One transient observation: in the first UI run the product chip 'selected' class read back as false immediately after click while the lessons list was still loading; re-run with a 300ms settle confirmed selection + persistence (API showed related_product_ids saved correctly)."
+}
