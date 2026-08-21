@@ -153,3 +153,11 @@ Audited the full product spec against the 25-iteration codebase (~95% already bu
 Registered new routers in server.py. Demo accounts confirmed seeded: student@demo.com/Student2026!, instructor@demo.com/Instructor2026!.
 Verified: testing agent iteration_26 — 100% backend (26/26) + 100% frontend (all 5 flows). Applied money-safety hardening (atomic gift-card redeem, deactivate guards active-only). Curl re-verified redeem 200 -> double 400 -> invalid 404.
 Still-open (spec 'future'/optional, not built): leaderboard admin toggle UI, gift-card application at gateway checkout (credit is tracked/visible only), notification timestamp datetime-normalisation.
+
+## Iterations 27-29 (2026-06) — Segmented-clip player overhaul
+- iter27: Fixed segmented lessons playing past the clip end. YouTube `end` playerVar is unreliable; now a 400ms poll hard-enforces end (pause+seekTo(end)+mark complete). Also fixed direct <video> start/end clamp. Verified 8/8 via window.YT stub (YouTube media can't play in sandbox — env restriction, not a bug).
+- iter27b: Clip-duration chip ("mm:ss clip", data-testid clip-duration-chip) on player.
+- iter28: Auto-Advance overlay (autoadvance-overlay, play-now/cancel, 6s countdown to next unlocked lesson via GET /programs/{id} lesson order) + clip-only progress bar (clip-progress/-fill). Confirmed Chapter Markers (admin "Auto chapters" bulk split, data-testid lesson-bulk -> POST /admin/programs/{id}/lessons/bulk) already existed. 8/8 pass.
+- iter29: Option A "YouTube clean-clip mode" — playerVars controls:0 (native scrubber/branding hidden), custom yt-toggle-play / native-toggle-play play/pause overlays, onReady seek-to-start+pause (start frame acts as poster), seekable clip-progress-track locked to [start,end], start lower-bound + end upper-bound lock. 7/7 pass; fixed direct-video play() promise rejection + seeded clipPct from resume.
+- Decisions (user): do Option A now, cloud-hosted clips (Option B) LATER; poster = clip start frame (achieved via YouTube seek+pause on ready, since YouTube can't export an arbitrary-timestamp still); NO 7-12min duration validation.
+- KNOWN YouTube limitation: cannot fully remove the brief YouTube logo flash on load, and clips require the source video to remain public/unlisted. Full control (clean scrubber, no branding, exact trim) needs Option B cloud hosting — deferred per user.

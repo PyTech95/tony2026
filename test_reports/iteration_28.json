@@ -1,0 +1,41 @@
+{
+  "summary": "Frontend-only verification of the new player UX (clip-only progress bar + auto-advance) and a regression confirmation of admin Chapter Markers (bulk auto-chapters). YouTube media cannot play in this sandbox, so window.YT was stubbed via add_init_script with an instrumented fake IFrame player (getCurrentTime/getDuration/pauseVideo/seekTo/destroy + onStateChange PLAYING) and a manually driven clock, so the app's real VideoPlayer.jsx code executed. ALL 8 scenarios passed; no defects found in the tested features.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "VideoPlayer /library/{id}", "issues": ["Cosmetic only: on 1920px desktop the clip progress bar labels (10px, #9AA096 on #FAFAF7) are very low contrast (~2.3:1) — fine as decorative meta but borderline for readability.", "Auto-advance overlay is fixed at bottom-20; on desktop it sits far below the player/content, visually detached from the video (still fully clickable)."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_28.json"],
+  "action_items": [
+    "No functional fixes required for this iteration.",
+    "Optional: no DELETE endpoint exists for /api/admin/programs/{id} (returns 405) — admins can create courses but can't remove them; QA test programs had to be deleted directly in Mongo."
+  ],
+  "critical_code_review_comments": [
+    "VideoPlayer.jsx: the YT poll interval is 400ms but the comment says 'Poll every 1s' — stale comment.",
+    "Admin.jsx is 1756 lines; LessonsEditor/CoursesPane/SettingsPane should be split into separate modules per the >700-line guideline.",
+    "goNext() is used inside the countdown useEffect with exhaustive-deps disabled; safe today because nextLesson is set before autoAdvance, but fragile if load order changes."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "not tested (frontend-only request)", "frontend": "100% (8/8 scenarios)" },
+  "seed_data_creation": "Created temporary program 'TEST_ChapterMarkers QA' (8568307c-...) + 3 TEST_ chapter lessons for the bulk flow; all lessons deleted via API and the program document removed from Mongo (no DELETE endpoint). Watch-progress rows created by the simulated playback were also deleted. Live data is clean.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "admin tony@tonyyoga.com / TonyYoga2026!, student student@demo.com / Student2026!",
+  "detailed_results": [
+    "PASS clip-progress renders under player for playable lesson; labels '0:00' and '10:00' (clip length, not source video length).",
+    "PASS fill is segment-relative: simulated t=150 -> width 25% and left label '2:30'; t=300 -> 50% / '5:00' (segment 0-600).",
+    "PASS at segment end fill = 100%.",
+    "PASS autoadvance-overlay appears on reaching end_seconds with 'UP NEXT' + correct next lesson title ('Pranayama · Standing Deep Breathing') and countdown starting at 6, decrementing each second.",
+    "PASS countdown reaching 0 navigates to /library/efa56e07-... (next lesson).",
+    "PASS 'Play now' (autoadvance-play-now) navigates immediately.",
+    "PASS 'Stay' (autoadvance-cancel) dismisses overlay and no navigation happens for 5+ s afterwards.",
+    "PASS last lesson ('Closing Sequence', direct mp4 -> onEnded fired): no overlay, 'Completed' badge shown.",
+    "PASS next-lesson LOCKED case (student@demo.com on free-preview lesson 1, lesson 2 locked): clip reaches 100%, Completed badge shows, NO overlay.",
+    "PASS Chapter Markers: /admin -> Courses & Videos -> course row -> lessons-editor -> 'Auto chapters' (lesson-bulk) -> bulk-form; bulk-preview correctly said 'Will create 3 lessons'; bulk-save created 3 lessons with clip ranges 0:00-2:30, 2:30-5:00, 5:00+ and FREE flag on lesson 1; success toast '3 lessons created from chapters.'"
+  ],
+  "context_for_next_testing_agent": "YouTube playback is still blocked in this sandbox. Working recipe: page.add_init_script defining window.YT {PlayerState, Player} where the ctor stores itself on window.__fake, exposes getCurrentTime/getDuration/pauseVideo/playVideo/seekTo/destroy and fires cfg.events.onStateChange({data:1}) after 200ms; then await page.wait_for_function('() => !!window.__fake') AFTER wait_for_selector('[data-testid=\"clip-progress\"]') (the player is built a moment later) and drive window.__fake._t. Login: POST /api/auth/login returns key 'token' (NOT access_token); set localStorage ty_auth_token. Note some lessons in Core 26+ are direct mp4 (e.g. last lesson 41c25717-...): use dispatchEvent(new Event('ended')) on [data-testid=video-el]. Admin program create requires instructor_id (de8dcd27-9b54-4a8d-9d38-baedd877a102); there is no DELETE /admin/programs.",
+  "rca_of_the_issue": "N/A — no failures observed in the tested features."
+}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { Lock, CheckCircle2, Scissors } from "lucide-react";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { Lock, CheckCircle2, Scissors, Play, Pause } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import PageHeader from "@/components/PageHeader";
@@ -25,21 +25,29 @@ function loadYT() {
 export default function VideoPlayer() {
   const { id } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [v, setV] = useState(null);
   const [resume, setResume] = useState(0);
   const [done, setDone] = useState(false);
   const [ready, setReady] = useState(false); // resume-position fetched, safe to build player
+  const [nextLesson, setNextLesson] = useState(null);
+  const [clipPct, setClipPct] = useState(0);
+  const [autoAdvance, setAutoAdvance] = useState(false);
+  const [countdown, setCountdown] = useState(6);
+  const [playing, setPlaying] = useState(false);
 
   const ytHostRef = useRef(null);
   const playerRef = useRef(null);
   const videoRef = useRef(null);
   const timerRef = useRef(null);
   const lastSave = useRef(0);
+  const completeRef = useRef(() => {});
 
-  // Load video + existing progress
+  // Load video + existing progress + next lesson (for auto-advance)
   useEffect(() => {
     let mounted = true;
     setReady(false);
+    setClipPct(0); setAutoAdvance(false); setCountdown(6); setNextLesson(null);
     (async () => {
       const res = await api.get(`/videos/${id}`).catch(() => ({ data: false }));
       if (!mounted) return;
@@ -51,10 +59,35 @@ export default function VideoPlayer() {
           if (rec) { if (!rec.completed) setResume(rec.seconds || 0); setDone(!!rec.completed); }
         } catch { /* noop */ }
       }
+      if (res.data && res.data.program_id) {
+        try {
+          const { data: prog } = await api.get(`/programs/${res.data.program_id}`);
+          const ls = prog.lessons || [];
+          const idx = ls.findIndex((l) => l.video?.id === id);
+          if (mounted && idx >= 0 && idx + 1 < ls.length) setNextLesson(ls[idx + 1]);
+        } catch { /* noop */ }
+      }
       if (mounted) setReady(true);
     })();
     return () => { mounted = false; };
   }, [id, user]);
+
+  const goNext = () => { if (nextLesson?.video?.id) navigate(`/library/${nextLesson.video.id}`); };
+  // Fresh closure each render so the player's poll callback sees the latest nextLesson.
+  completeRef.current = () => {
+    setDone(true);
+    setClipPct(100);
+    if (nextLesson && nextLesson.is_unlocked && nextLesson.video?.id) { setCountdown(6); setAutoAdvance(true); }
+  };
+
+  // Auto-advance countdown → next lesson
+  useEffect(() => {
+    if (!autoAdvance) return;
+    if (countdown <= 0) { goNext(); return; }
+    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAdvance, countdown]);
 
   const saveProgress = async (seconds, completed = false) => {
     if (!user) return;
@@ -78,32 +111,57 @@ export default function VideoPlayer() {
       playerRef.current = new YT.Player(ytHostRef.current, {
         host: "https://www.youtube-nocookie.com",
         videoId: parseYouTubeId(v.video_url),
-        playerVars: { start: Math.floor(beginAt), end: end ? Math.floor(end) : undefined, rel: 0, modestbranding: 1, playsinline: 1 },
+        playerVars: {
+          start: Math.floor(beginAt),
+          controls: 0, disablekb: 1, fs: 0, rel: 0,
+          modestbranding: 1, playsinline: 1, iv_load_policy: 3, cc_load_policy: 1,
+        },
         events: {
+          onReady: () => {
+            // Seek to the clip start and pause so the first visible frame IS the
+            // clip's start frame (acts as the poster), then wait for the user.
+            try { playerRef.current.seekTo(beginAt, true); } catch { /* noop */ }
+            try { playerRef.current.pauseVideo(); } catch { /* noop */ }
+            setPlaying(false);
+            if (end && end > start) setClipPct(Math.min(100, Math.max(0, ((beginAt - start) / (end - start)) * 100)));
+          },
           onStateChange: (e) => {
             const P = window.YT.PlayerState;
             clearInterval(timerRef.current);
             if (e.data === P.PLAYING) {
-              // Poll every 1s to (a) save progress and (b) hard-enforce the segment
-              // end boundary — YouTube's `end` playerVar is unreliable and often
-              // lets the full video keep playing past the lesson clip.
+              setPlaying(true);
+              // Poll every 400ms to (a) save progress, (b) drive the clip bar, and
+              // (c) hard-enforce the segment [start,end] — YouTube's own controls are
+              // hidden and its `end` param is unreliable, so we lock playback here.
               timerRef.current = setInterval(() => {
                 try {
                   const t = playerRef.current.getCurrentTime();
+                  if (t < start - 1) { try { playerRef.current.seekTo(start, true); } catch { /* noop */ } }
+                  if (end) {
+                    setClipPct(Math.min(100, Math.max(0, ((t - start) / (end - start)) * 100)));
+                  } else {
+                    const d = playerRef.current.getDuration?.() || 0;
+                    if (d) setClipPct(Math.min(100, (t / d) * 100));
+                  }
                   if (end && t >= end - 0.25) {
                     try { playerRef.current.pauseVideo(); } catch { /* noop */ }
                     try { playerRef.current.seekTo(end, true); } catch { /* noop */ }
                     clearInterval(timerRef.current);
+                    setPlaying(false);
                     saveProgress(end, true);
+                    completeRef.current();
                     return;
                   }
                   saveProgress(t, false);
                 } catch { /* noop */ }
               }, 400);
             } else if (e.data === P.PAUSED) {
+              setPlaying(false);
               try { saveProgress(playerRef.current.getCurrentTime(), false); } catch { /* noop */ }
             } else if (e.data === P.ENDED) {
+              setPlaying(false);
               try { saveProgress(end || playerRef.current.getCurrentTime(), true); } catch { /* noop */ }
+              completeRef.current();
             }
           },
         },
@@ -129,6 +187,26 @@ export default function VideoPlayer() {
   const segEnd = v.end_seconds || undefined;
   const clipLabel = segEnd && segEnd > segStart ? secToMMSS(segEnd - segStart) : null;
 
+  const togglePlay = () => {
+    if (youtube && playerRef.current) {
+      try { playing ? playerRef.current.pauseVideo() : playerRef.current.playVideo(); } catch { /* noop */ }
+    } else if (videoRef.current) {
+      try {
+        if (videoRef.current.paused) { const p = videoRef.current.play(); if (p && p.catch) p.catch(() => {}); }
+        else { videoRef.current.pause(); }
+      } catch { /* noop */ }
+    }
+  };
+
+  const seekToPct = (pct) => {
+    pct = Math.min(1, Math.max(0, pct));
+    if (!segEnd || segEnd <= segStart) return; // clip seek only for segmented clips
+    const target = segStart + (segEnd - segStart) * pct;
+    if (youtube && playerRef.current) { try { playerRef.current.seekTo(target, true); } catch { /* noop */ } }
+    else if (videoRef.current) { try { videoRef.current.currentTime = target; } catch { /* noop */ } }
+    setClipPct(pct * 100);
+  };
+
   const ClipChip = () => clipLabel ? (
     <div
       data-testid="clip-duration-chip"
@@ -148,36 +226,75 @@ export default function VideoPlayer() {
           youtube ? (
             <div className="relative rounded-3xl overflow-hidden bg-black aspect-video" data-testid="video-youtube">
               <ClipChip />
-              <div ref={ytHostRef} className="h-full w-full" />
+              <div ref={ytHostRef} className="pointer-events-none h-full w-full" />
+              {/* Custom control layer: hides YouTube's native scrubber/branding and
+                  locks interaction to our clip. Click toggles play/pause. */}
+              <button
+                type="button"
+                onClick={togglePlay}
+                data-testid="yt-toggle-play"
+                aria-label={playing ? "Pause" : "Play"}
+                className="group absolute inset-0 z-[5] flex items-center justify-center focus:outline-none"
+              >
+                <span
+                  className={`flex h-16 w-16 items-center justify-center rounded-full bg-[#B25A45] text-white shadow-xl transition-all duration-200 ${
+                    playing ? "opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100" : "opacity-100"
+                  }`}
+                >
+                  {playing ? <Pause className="h-7 w-7" fill="currentColor" /> : <Play className="h-7 w-7 translate-x-0.5" fill="currentColor" />}
+                </span>
+              </button>
             </div>
           ) : (
-            <div className="relative rounded-3xl overflow-hidden bg-black aspect-video">
+            <div className="relative rounded-3xl overflow-hidden bg-black aspect-video" data-testid="video-native-wrap">
               <ClipChip />
               <video
                 ref={videoRef}
                 data-testid="video-el"
-                controls
                 playsInline
                 className="h-full w-full"
                 poster={v.cover_image}
                 src={v.video_url}
+                onPlay={() => setPlaying(true)}
+                onPause={() => setPlaying(false)}
                 onLoadedMetadata={() => {
                   const el = videoRef.current; if (!el) return;
                   const begin = (resume && resume > segStart + 2 && (!segEnd || resume < segEnd - 2)) ? resume : segStart;
                   if (begin > 0) el.currentTime = begin;
+                  const e2 = segEnd || el.duration || 0;
+                  if (e2 > segStart) setClipPct(Math.min(100, Math.max(0, ((begin - segStart) / (e2 - segStart)) * 100)));
                 }}
                 onTimeUpdate={() => {
                   const el = videoRef.current; if (!el) return;
+                  if (el.currentTime < segStart - 1) el.currentTime = segStart;
+                  const s = segStart; const e2 = segEnd || el.duration || 0;
+                  if (e2 > s) setClipPct(Math.min(100, Math.max(0, ((el.currentTime - s) / (e2 - s)) * 100)));
                   if (segEnd && el.currentTime >= segEnd - 0.3) {
                     el.pause();
                     try { el.currentTime = segEnd; } catch { /* noop */ }
                     saveProgress(segEnd, true);
+                    completeRef.current();
                     return;
                   }
                   saveProgress(el.currentTime, false);
                 }}
-                onEnded={() => { const el = videoRef.current; if (el) saveProgress(segEnd || el.duration || el.currentTime, true); }}
+                onEnded={() => { const el = videoRef.current; if (el) saveProgress(segEnd || el.duration || el.currentTime, true); completeRef.current(); }}
               />
+              <button
+                type="button"
+                onClick={togglePlay}
+                data-testid="native-toggle-play"
+                aria-label={playing ? "Pause" : "Play"}
+                className="group absolute inset-0 z-[5] flex items-center justify-center focus:outline-none"
+              >
+                <span
+                  className={`flex h-16 w-16 items-center justify-center rounded-full bg-[#B25A45] text-white shadow-xl transition-all duration-200 ${
+                    playing ? "opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100" : "opacity-100"
+                  }`}
+                >
+                  {playing ? <Pause className="h-7 w-7" fill="currentColor" /> : <Play className="h-7 w-7 translate-x-0.5" fill="currentColor" />}
+                </span>
+              </button>
             </div>
           )
         ) : (
@@ -191,6 +308,30 @@ export default function VideoPlayer() {
               <p className="text-sm text-white/70 max-w-sm">Join Tony Yoga to unlock the full library and every practice.</p>
               <Link to="/memberships" data-testid="video-unlock-cta" className="pill pill-primary mt-2">See memberships</Link>
             </div>
+          </div>
+        )}
+
+        {playable && (
+          <div data-testid="clip-progress" className="-mt-2 space-y-1">
+            <div
+              role="slider"
+              aria-label="Clip position"
+              data-testid="clip-progress-track"
+              onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); seekToPct((e.clientX - r.left) / r.width); }}
+              className={`group relative h-1.5 w-full overflow-hidden rounded-full bg-[#E5E6DF] ${segEnd ? "cursor-pointer" : ""}`}
+            >
+              <div
+                data-testid="clip-progress-fill"
+                className="h-full rounded-full bg-[#B25A45] transition-[width] duration-300 ease-out"
+                style={{ width: `${clipPct}%` }}
+              />
+            </div>
+            {clipLabel && (
+              <div className="flex justify-between text-[10px] font-medium text-[#9AA096]">
+                <span data-testid="clip-elapsed">{secToMMSS((clipPct / 100) * (segEnd - segStart))}</span>
+                <span>{clipLabel}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -209,6 +350,36 @@ export default function VideoPlayer() {
           <p className="text-[15px] text-[#545E56] leading-relaxed">{v.description}</p>
         </div>
       </div>
+
+      {autoAdvance && nextLesson && (
+        <div
+          data-testid="autoadvance-overlay"
+          className="fixed inset-x-0 bottom-20 z-50 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-[#2A312D] bg-[#1C221F] px-4 py-3 text-[#FAFAF7] shadow-2xl"
+          style={{ width: "calc(100% - 2.5rem)" }}
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#B25A45] text-sm font-bold">
+            {countdown}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] uppercase tracking-widest text-white/50">Up next</div>
+            <div className="truncate text-sm font-semibold">{nextLesson.video?.title || "Next lesson"}</div>
+          </div>
+          <button
+            data-testid="autoadvance-cancel"
+            onClick={() => setAutoAdvance(false)}
+            className="shrink-0 rounded-full px-3 py-1.5 text-xs font-medium text-white/60 hover:text-white"
+          >
+            Stay
+          </button>
+          <button
+            data-testid="autoadvance-play-now"
+            onClick={goNext}
+            className="shrink-0 rounded-full bg-[#B25A45] px-3 py-1.5 text-xs font-semibold hover:bg-[#9d4d3b] transition"
+          >
+            Play now
+          </button>
+        </div>
+      )}
     </div>
   );
 }

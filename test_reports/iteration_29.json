@@ -1,0 +1,46 @@
+{
+  "summary": "Frontend-only verification of 'YouTube clean-clip mode' in VideoPlayer.jsx. Real YouTube media cannot play in this sandbox, so window.YT was stubbed via add_init_script with an instrumented fake IFrame Player (captures playerVars; records playVideo/pauseVideo/seekTo/destroy; test-driven clock + onReady/onStateChange), so the app's real logic executed. All 7 acceptance criteria PASSED: controls=0 (native scrubber hidden) + disablekb/fs/modestbranding, onReady seekTo(start)+pauseVideo (poster at clip start), yt-toggle-play play/pause toggle with icon/aria-label flip, clip-progress-track seek constrained to [start,end] with proportional fill, end enforcement (pause+seekTo(end)+Completed badge+autoadvance overlay), start lower-bound correction (seekTo(start)), and direct <video> path with NO controls attribute + native-toggle-play overlay. One real defect found: video.play() promise is not caught, producing an unhandled rejection ('The element has no supported sources.') which raises the CRA red 'Uncaught runtime errors' overlay covering the page.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "VideoPlayer.jsx togglePlay() (direct <video> branch, line ~193)", "issue": "videoRef.current.play() returns a Promise that is never caught. When the source fails/blocked (sandbox mixkit asset returns 403; in prod: autoplay policy or unsupported source) an unhandledrejection fires ('The element has no supported sources.') and CRA's dev error overlay covers the entire page. Verified via window.__rejections. Fix: videoRef.current.play()?.catch(()=>{}) and optionally surface a friendly error state.", "selector": "[data-testid=\"native-toggle-play\"]", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Resume + clip progress bar on load", "issue": "When a saved resume position exists the player is built with playerVars.start=resume (e.g. 610 for the 600-900 clip) and seeks there, but clip-progress-fill stays 0% and clip-elapsed shows '0:00' until the first poll tick after the user presses play — the bar contradicts the actual playhead. Suggest initialising clipPct from the resume value.", "affected_selectors": ["[data-testid=\"clip-progress-fill\"]", "[data-testid=\"clip-elapsed\"]", "[data-testid=\"video-resumed\"]"]}
+    ],
+    "design_issues": [
+      {"screen": "VideoPlayer /library/{id}", "issues": ["Clip bar labels (10px #9AA096 on #FAFAF7) remain ~2.3:1 contrast — carried over from iteration 28.", "Auto-advance overlay is fixed at bottom-20, visually detached from the player on 1920px desktop (functional)."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_29.json"],
+  "action_items": [
+    "Catch the rejection from videoRef.current.play() in togglePlay() (direct-video branch) so a failed/blocked source cannot trigger an unhandled rejection / CRA error overlay.",
+    "Optional: seed clipPct from the resume position so the clip bar/elapsed match the actual start frame when resuming."
+  ],
+  "critical_code_review_comments": [
+    "togglePlay(): unhandled play() promise (see above) — the only functional defect found in the new player code.",
+    "Segment enforcement lives only inside the PLAYING poll; if YouTube reports BUFFERING/CUED without PLAYING the interval is cleared and the lower/upper bound is not enforced until PLAYING resumes. Acceptable today (controls hidden so users cannot seek), but note it.",
+    "seekToPct() sets clipPct optimistically before the seek confirms; if seekTo fails the bar shows a wrong position until the next poll.",
+    "VideoPlayer.jsx is 380 lines with two near-duplicate control-overlay blocks (yt/native) — extract a shared <PlayOverlay/> to satisfy DRY."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "100% of the 7 clean-clip acceptance criteria passed; 1 defect (unhandled play() rejection) found in the direct-video regression path"},
+  "seed_data_creation": "Simulated playback created watch_progress rows for tony@tonyyoga.com on videos bcde4f96, efa56e07, 485fe325 — all 3 deleted from Mongo after testing. No other data created.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "admin tony@tonyyoga.com / TonyYoga2026! (used); student@demo.com / Student2026!",
+  "detailed_results": [
+    "PASS playerVars = {controls:0, disablekb:1, fs:0, rel:0, modestbranding:1, playsinline:1, iv_load_policy:3, cc_load_policy:1} — native scrubber/controls hidden.",
+    "PASS YT host div computed pointer-events: none — users cannot interact with YouTube directly.",
+    "PASS onReady on a fresh clip (485fe325, start 600) -> calls ['seekTo:600.00','pauseVideo']; aria-label 'Play'; labels '0:00' / '10:00'. On a clip with saved resume 610 it correctly seeks to 610 instead (resume behaviour).",
+    "PASS yt-toggle-play while paused -> playVideo, aria-label flips to 'Pause'; clicking again -> pauseVideo, aria-label back to 'Play'.",
+    "PASS clip bar is segment-relative: clock t=750 on the 600-900 clip -> fill 50%, clip-elapsed '2:30'.",
+    "PASS clip-progress-track click at 25% -> seekTo:675.00 (inside [600,900]) and fill width 25%.",
+    "PASS start lower-bound: setting currentTime=100 during playback -> seekTo:600.00 correction (playhead returned to 600).",
+    "PASS end upper-bound on bcde4f96 (0-600): clock 605 -> ['pauseVideo','seekTo:600.00'], Completed badge shown, autoadvance-overlay visible with 'UP NEXT / Pranayama · Standing Deep Breathing', countdown, Play now + Stay; 'Stay' dismissed it with no navigation.",
+    "PASS ENDED state event -> Completed badge + autoadvance overlay, playing state reset to Play.",
+    "PASS direct <video> lesson (3570c056): no 'controls' attribute (el.controls === false), native-toggle-play overlay present. Actual playback could not be exercised — the mixkit mp4 returns HTTP 403 in this sandbox (media error code 4), an environment restriction; this is what surfaced the unhandled play() rejection."
+  ],
+  "context_for_next_testing_agent": "Reuse the window.YT stub (add_init_script) documented in iterations 27/28/29 — YouTube iframes and the mixkit mp4 assets are both blocked in this sandbox (mp4 -> 403 / media error 4). Clean-clip mode is fully verified; only the unhandled video.play() promise remains open. Remember to delete watch_progress rows created by simulated playback (db tony_yoga, collection watch_progress).",
+  "rca_of_the_issue": "togglePlay() calls HTMLMediaElement.play() without handling the returned Promise. Repro: open /library/3570c056-... (direct mp4) and click native-toggle-play while the source cannot load (403 in sandbox, or autoplay-blocked in a real browser) -> window unhandledrejection 'The element has no supported sources.' and CRA's dev overlay covers the UI. Mitigation: attach .catch() and set an error state instead of failing silently."
+}
