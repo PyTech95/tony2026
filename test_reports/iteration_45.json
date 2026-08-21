@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 45 — Phase 2 Meditation & Breathwork module tested end-to-end (backend API + public page + admin CRUD), Discover Spanish i18n, homepage Discover strip/coming-soon/logo, and regression (discover 72, asanas, Core 26+ course page). 25/25 pytest assertions pass; all frontend flows verified. No blocking issues found. DB left at exactly 9 seeded meditations (all TEST_ data deleted).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Homepage 'More practice, coming soon.' (home-coming-soon)", "issues": ["Now only 3 cards remain in a wide container, so the row ends ~40% short of the right edge and looks left-hugged/unbalanced vs the full-width Discover strip above it. Consider a 3-col grid that spans the container or centering the row."]},
+      {"screen": "/meditations", "issues": ["Page copy is English-only — with ES active (ty_lang=es) the whole Meditation & Breathwork page (title, tabs All/Meditation/Breathwork/Yoga Nidra, 'Meditation of the day', search placeholder, focus chips) stays in English. Not in this batch's scope, but it is now the only major public section not translated."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration45.py",
+    "/app/test_reports/pytest/iteration45.xml"
+  ],
+  "action_items": [
+    "Optional cosmetic: balance/centre the 3-card home-coming-soon row now that 5 cards became 3.",
+    "Optional follow-up: add i18n (es) strings for the Meditations page chrome so ES users don't see an English-only section."
+  ],
+  "critical_code_review_comments": [
+    "routers/meditations.py: route order is correct (/meditations/facets and /meditations/daily declared before /meditations/{med_id}) — verified 404 vs facets/daily all behave. _shape() helper is dead code (never called) since queries already project {_id:0}; safe to delete.",
+    "GET /meditations ignores unknown `kind` values silently (kind='bogus' returns all 9) instead of 422/empty — acceptable but inconsistent with admin _validate(); consider validating the query param.",
+    "PATCH /admin/meditations updates before existence check: for an unknown id it performs a no-op update_one then returns 404 (verified 404). Fine but a pre-check would be clearer.",
+    "Duration bucket logic is duplicated verbatim in backend list_meditations() and frontend Meditations.jsx useMemo — the page filters client-side over the full list while the API also supports the same params; risk of drift if buckets change."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration45.py (new)"
+  ],
+  "success_rate": { "backend": "100% (25/25)", "frontend": "100% of tested flows" },
+  "seed_data_creation": "Created and then deleted: API sessions 'TEST_ Box Breathing QA'/'TEST_ Renamed QA', 'TEST_ video session'; UI session 'TEST_ QA UI Session' -> renamed -> deleted. Verified via Mongo + /api/admin/meditations that meditations count is back to exactly 9 with zero TEST_ leftovers.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "Admin tony@tonyyoga.com / TonyYoga2026! (worked). Brute-force lockout verified with throwaway locktest45@demo.com.",
+  "context_for_next_testing_agent": "Detailed verified results: (BACKEND) GET /api/meditations = 9 published, 3/3/3 meditation/breathwork/nidra, all media_kind=audio with SoundHelix http audio_url, no _id leakage; ?kind=<each> = 3; ?focus=Sleep = 4 and all contain Sleep; ?duration=5-15 = 6 all <=15 and the 3 buckets partition all 9; ?q= title-substring works, unknown q = []; combined kind+duration works. /meditations/facets returns kinds=[meditation,breathwork,nidra], durations=[5-15,20-40,60+], focus_areas exactly = union of session focus areas ordered by the taxonomy. /meditations/daily deterministic within the day and inside the published set. /meditations/{id} 200; unknown id 404; unpublished id 404. Admin: /api/admin/meditations 401 without token; create/patch/delete all 200, invalid kind -> 422, invalid media_kind -> 422, youtube_url derives youtube_id + hqdefault cover, patch unknown -> 404. (FRONTEND) /meditations: 9 cards, daily banner opens player, <audio autoplay> actually streams (readyState 4, duration 353s, currentTime advancing, no media error), tabs 3/3/3/9, focus Sleep=4, duration 5-15=6, search 'sleep'=1, 'zzzz' -> meditation-empty, card click opens player, close works, /breathwork renders the same page, mobile 390px has no horizontal overflow and player sheet + audio work. Admin /admin?tab=meditations: pane renders, 9 rows, create via UI (kind/media/duration/focus chips/audio url/published) appends row (10), med-edit-<id> loads form, rename persists, med-delete-<id> (window.confirm auto-accepted via page.on('dialog')) removes it, back to 9. Discover i18n: ES pill sets localStorage ty_lang=es; /discover shows EXPLORAR / Descubre / Spanish subtitle / placeholder 'Buscar clases y programas…' / Todo·Programas·Clases / Filtros / '72 resultados' / badges PROGRAMA & CLASE; EN pill restores English immediately (no reload needed). Homepage: header logo h=79px (h-[60px]/sm:h-[79px]), home-discover-cta -> /discover, home-meditations-cta -> /meditations, home-coming-soon has exactly 3 cards (Private sessions, Teacher training, Challenges). Regression: /api/discover total 72 (note: item type field is 'kind', not 'type'), /api/programs/{id} is the course endpoint (there is no /api/courses/{id} — 404), /asanas page renders 23 pose cards, Core 26+ page shows demo-video, program-purchase, 26 locked lessons and bundle-upsell. Auth playbook: admin password_hash prefix $2b$12$, login sets HttpOnly+Secure+SameSite=None access_token cookie, 5 failed logins -> 429 on the 6th, CORS allow_credentials=False with allow_origins from CORS_ORIGINS (default *) — app auth uses Bearer tokens so this is consistent. HARNESS TIP: locator.evaluate() on the audio element hangs (Playwright waits on a pending main-frame navigation); use page.evaluate() with a querySelector instead.",
+  "rca_of_the_issue": "No product defects found. Three initial pytest failures were test-authoring errors on my side, not app bugs: (1) unauthenticated admin check used the same requests.Session that had already logged in, so the HttpOnly access_token cookie authenticated it (fixed by a fresh session -> 401); (2) discover items expose 'kind' not 'type'; (3) the course endpoint is /api/programs/{id}, not /api/courses/{id}. Two Playwright failures on the audio player were harness artifacts (locator.evaluate blocked on a pending navigation), confirmed non-issues by polling with page.evaluate — audio autoplays and progresses."
+}

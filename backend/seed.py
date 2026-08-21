@@ -528,6 +528,34 @@ async def seed():
             })
         await db.asanas.insert_many(docs)
 
+    # Seed Meditation & Breathwork module (idempotent — only if empty)
+    if await db.meditations.count_documents({}) == 0:
+        mnow = now_utc().isoformat()
+        AU = [f"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-{n}.mp3" for n in range(1, 6)]
+        def U(u): return u if u.startswith("https://images.pexels") else (u + "?auto=format&fit=crop&w=800&q=80")
+        meds = [
+            {"title": "Morning Calm Meditation", "kind": "meditation", "duration_minutes": 10, "focus_areas": ["Focus", "Grounding"], "description": "A gentle sit to arrive, settle the breath and set an intention for the day.", "cover_image": U("https://images.unsplash.com/photo-1506126613408-eca07ce68773")},
+            {"title": "Let Go of the Day", "kind": "meditation", "duration_minutes": 15, "focus_areas": ["Stress relief", "Sleep"], "description": "Unwind the nervous system and release tension held from the day.", "cover_image": U("https://images.unsplash.com/photo-1522075782449-e45a34f1ddfb")},
+            {"title": "Gratitude Practice", "kind": "meditation", "duration_minutes": 8, "focus_areas": ["Gratitude", "Focus"], "description": "A short heart-centred practice to cultivate appreciation.", "cover_image": U("https://images.unsplash.com/photo-1533162507191-d90c625b2640")},
+            {"title": "Box Breathing Reset", "kind": "breathwork", "duration_minutes": 6, "focus_areas": ["Stress relief", "Breath control"], "description": "Equal-count breathing (4-4-4-4) to steady the mind in minutes.", "cover_image": U("https://images.unsplash.com/photo-1518708909080-704599b19972")},
+            {"title": "Energising Breath of Fire", "kind": "breathwork", "duration_minutes": 7, "focus_areas": ["Energy", "Breath control"], "description": "Kapalabhati-style breathing to wake up the body and clear the mind.", "cover_image": U("https://images.unsplash.com/photo-1554244933-d876deb6b2ff")},
+            {"title": "Alternate Nostril (Nadi Shodhana)", "kind": "breathwork", "duration_minutes": 10, "focus_areas": ["Anxiety relief", "Focus"], "description": "Balancing pranayama to calm anxiety and sharpen focus.", "cover_image": U("https://images.unsplash.com/photo-1532798442725-41036acc7489")},
+            {"title": "Yoga Nidra for Deep Sleep", "kind": "nidra", "duration_minutes": 30, "focus_areas": ["Sleep", "Stress relief"], "description": "A full yogic-sleep journey to guide you into deep rest.", "cover_image": U("https://images.unsplash.com/photo-1593358578736-186f3d13c789")},
+            {"title": "Afternoon Nidra Reset", "kind": "nidra", "duration_minutes": 20, "focus_areas": ["Stress relief", "Sleep"], "description": "A midday reset to restore energy without a full nap.", "cover_image": U("https://images.unsplash.com/photo-1613602025754-04e1b4a24156")},
+            {"title": "Body Scan Nidra", "kind": "nidra", "duration_minutes": 25, "focus_areas": ["Grounding", "Sleep"], "description": "A slow rotation of consciousness through the body to fully let go.", "cover_image": U("https://images.pexels.com/photos/6111596/pexels-photo-6111596.jpeg")},
+        ]
+        mdocs = []
+        for i, m in enumerate(meds):
+            mdocs.append({
+                "id": gen_id(), **m,
+                "media_kind": "audio", "audio_url": AU[i % len(AU)],
+                "youtube_url": "", "youtube_id": None,
+                "level": "beginner", "language": "both",
+                "order_index": i, "is_published": True, "created_at": mnow,
+            })
+        await db.meditations.insert_many(mdocs)
+
+
     # Backfill discovery tags (focus/intensity/language) on programs + on-demand videos
     _FMAP = {"beginner": "gentle", "intermediate": "moderate", "advanced": "strong"}
     _FOCUS_ALL = ["Back care", "Flexibility", "Balance", "Strength", "Stress relief", "Sleep", "Energy", "Beginner basics"]

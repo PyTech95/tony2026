@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Search, X, SlidersHorizontal, Clock, GraduationCap, Compass } from "lucide-react";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
 
-const TYPE_TABS = [
-  { key: "all", label: "All" },
-  { key: "program", label: "Programs" },
-  { key: "class", label: "Classes" },
-];
-
 export default function Discover() {
+  const { t } = useTranslation();
+  const TYPE_TABS = [
+    { key: "all", label: t("disc.all") },
+    { key: "program", label: t("disc.programs") },
+    { key: "class", label: t("disc.classes") },
+  ];
   const [facets, setFacets] = useState(null);
   const [items, setItems] = useState(null);
   const [q, setQ] = useState("");
@@ -41,11 +42,11 @@ export default function Discover() {
 
   return (
     <div data-testid="discover-page" className="pb-10">
-      <PageHeader eyebrow="Explore" title="Discover" testId="discover-header" />
+      <PageHeader eyebrow={t("disc.eyebrow")} title={t("disc.title")} testId="discover-header" />
 
       <div className="mx-auto max-w-5xl px-5">
         <p className="text-[15px] text-[#545E56] leading-relaxed mb-5 max-w-2xl">
-          Browse every program and on-demand class. Filter by what you need today — a focus, a level, or the minutes you have.
+          {t("disc.sub")}
         </p>
 
         {/* Search */}
@@ -55,7 +56,7 @@ export default function Discover() {
             data-testid="discover-search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search classes & programs…"
+            placeholder={t("disc.search")}
             className="w-full rounded-full border border-[#E5E6DF] bg-white pl-11 pr-10 py-3 text-[15px] focus:outline-none focus:border-[#B25A45]"
           />
           {q && (
@@ -84,20 +85,20 @@ export default function Discover() {
             onClick={() => setShowFilters((s) => !s)}
             className={`shrink-0 pill !py-2 !px-4 !text-[13px] ${showFilters || activeCount ? "pill-primary" : "pill-ghost"}`}
           >
-            <SlidersHorizontal className="h-3.5 w-3.5" /> Filters{activeCount ? ` (${activeCount})` : ""}
+            <SlidersHorizontal className="h-3.5 w-3.5" /> {t("disc.filters")}{activeCount ? ` (${activeCount})` : ""}
           </button>
         </div>
 
         {/* Filter panel */}
         {showFilters && facets && (
           <div data-testid="discover-filters" className="rounded-2xl bg-white border border-[#E5E6DF] p-4 mb-5 space-y-4">
-            <FilterRow label="Focus" testid="focus" options={facets.focus_areas} value={filters.focus} onPick={(v) => set("focus", v)} />
-            <FilterRow label="Level" testid="level" options={facets.levels} value={filters.level} onPick={(v) => set("level", v)} cap />
-            <FilterRow label="Style" testid="style" options={facets.styles} value={filters.style} onPick={(v) => set("style", v)} />
-            <FilterRow label="Duration" testid="duration" options={facets.durations} value={filters.duration} onPick={(v) => set("duration", v)} suffix=" min" note="Classes only" />
-            <FilterRow label="Language" testid="language" options={facets.languages} value={filters.language} onPick={(v) => set("language", v)} labels={{ en: "English", es: "Español" }} />
+            <FilterRow label={t("disc.focus")} testid="focus" options={facets.focus_areas} value={filters.focus} onPick={(v) => set("focus", v)} />
+            <FilterRow label={t("disc.level")} testid="level" options={facets.levels} value={filters.level} onPick={(v) => set("level", v)} cap />
+            <FilterRow label={t("disc.style")} testid="style" options={facets.styles} value={filters.style} onPick={(v) => set("style", v)} />
+            <FilterRow label={t("disc.duration")} testid="duration" options={facets.durations} value={filters.duration} onPick={(v) => set("duration", v)} suffix=" min" note={t("disc.classes_only")} />
+            <FilterRow label={t("disc.language")} testid="language" options={facets.languages} value={filters.language} onPick={(v) => set("language", v)} labels={{ en: "English", es: "Español" }} />
             {(activeCount > 0 || q) && (
-              <button data-testid="discover-clear-all" onClick={clearAll} className="text-xs font-semibold text-[#B25A45] hover:underline">Clear all filters</button>
+              <button data-testid="discover-clear-all" onClick={clearAll} className="text-xs font-semibold text-[#B25A45] hover:underline">{t("disc.clear")}</button>
             )}
           </div>
         )}
@@ -106,12 +107,12 @@ export default function Discover() {
         {items === null ? <Spinner /> : items.length === 0 ? (
           <div data-testid="discover-empty" className="text-center py-16 text-[#6B7269]">
             <Compass className="h-8 w-8 mx-auto mb-3 text-[#C9CBBF]" />
-            <p className="text-sm">Nothing matches those filters yet.</p>
-            <button onClick={clearAll} className="mt-3 pill pill-ghost !text-xs">Reset filters</button>
+            <p className="text-sm">{t("disc.empty")}</p>
+            <button onClick={clearAll} className="mt-3 pill pill-ghost !text-xs">{t("disc.reset")}</button>
           </div>
         ) : (
           <>
-            <div className="text-xs text-[#6B7269] mb-3" data-testid="discover-count">{items.length} result{items.length === 1 ? "" : "s"}</div>
+            <div className="text-xs text-[#6B7269] mb-3" data-testid="discover-count">{items.length} {items.length === 1 ? t("disc.result") : t("disc.results")}</div>
             <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" data-testid="discover-grid">
               {items.map((it) => (
                 <li key={`${it.kind}-${it.id}`}>
@@ -120,7 +121,7 @@ export default function Discover() {
                       {it.cover && <img src={it.cover} alt={it.title} loading="lazy" className="h-full w-full object-cover group-hover:scale-105 transition duration-500" />}
                       <div className="absolute inset-0 bg-gradient-to-t from-[#1C221F]/75 via-transparent to-transparent" />
                       <span className={`absolute top-2 left-2 text-[9px] uppercase tracking-widest font-bold rounded-full px-2 py-0.5 ${it.kind === "program" ? "bg-[#B25A45] text-white" : "bg-white/95 text-[#1C221F]"}`}>
-                        {it.kind === "program" ? "Program" : "Class"}
+                        {it.kind === "program" ? t("disc.program") : t("disc.class")}
                       </span>
                       <div className="absolute bottom-2 left-3 right-3 text-white">
                         <div className="text-[13px] font-semibold leading-tight clamp-2">{it.title}</div>

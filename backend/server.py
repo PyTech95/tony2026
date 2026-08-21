@@ -13,7 +13,7 @@ from seed import seed
 from fastapi import Request
 
 # Register all routers (side-effect imports)
-from routers import auth, scheduling, content, payments, referrals, admin, workshops, push, orders, submissions, settings, seed_tony, paypal, news, retreats, streaks, passes, wishlist, marketing, providers, bundles, assistant, zoom, broadcasts, leaderboard, giftcards, notifications, uploads, asanas  # noqa: F401
+from routers import auth, scheduling, content, payments, referrals, admin, workshops, push, orders, submissions, settings, seed_tony, paypal, news, retreats, streaks, passes, wishlist, marketing, providers, bundles, assistant, zoom, broadcasts, leaderboard, giftcards, notifications, uploads, asanas, meditations, printful  # noqa: F401
 from routers.push import send_reminders_tick
 from routers.retreats import send_balance_reminders_tick, expire_seat_offers_tick
 from routers.marketing import instagram_sync_tick

@@ -260,5 +260,27 @@
   "join.failed": "No se pudo crear la cuenta",
 
   "ht.coming": "Vídeo próximamente",
-  "ht.filmed": "Grabado con estudiantes reales"
+  "ht.filmed": "Grabado con estudiantes reales",
+
+  "disc.eyebrow": "Explorar",
+  "disc.title": "Descubre",
+  "disc.sub": "Explora todos los programas y clases bajo demanda. Filtra por lo que necesitas hoy — un enfoque, un nivel o los minutos que tengas.",
+  "disc.search": "Buscar clases y programas…",
+  "disc.all": "Todo",
+  "disc.programs": "Programas",
+  "disc.classes": "Clases",
+  "disc.filters": "Filtros",
+  "disc.focus": "Enfoque",
+  "disc.level": "Nivel",
+  "disc.style": "Estilo",
+  "disc.duration": "Duración",
+  "disc.language": "Idioma",
+  "disc.classes_only": "Solo clases",
+  "disc.clear": "Borrar filtros",
+  "disc.empty": "Nada coincide con esos filtros todavía.",
+  "disc.reset": "Restablecer filtros",
+  "disc.result": "resultado",
+  "disc.results": "resultados",
+  "disc.program": "Programa",
+  "disc.class": "Clase"
 }

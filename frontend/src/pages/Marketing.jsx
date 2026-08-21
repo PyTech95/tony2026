@@ -42,7 +42,7 @@ function Nav({ onOpenApp }) {
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
         <a href="#top" className="flex items-center" data-testid="marketing-logo">
-          <Logo className="h-12 w-12 sm:h-16 sm:w-16" />
+          <Logo className="h-[60px] w-[60px] sm:h-[79px] sm:w-[79px]" />
         </a>
         <nav className="hidden lg:flex items-center gap-8" data-testid="marketing-nav-links">
           {items.map((i) => (
@@ -365,9 +365,14 @@ function DiscoverStrip() {
               <span key={x} className="text-xs rounded-full bg-white/10 px-3 py-1.5 text-white/80">{x}</span>
             ))}
           </div>
-          <Link to="/discover" data-testid="home-discover-cta" className="pill pill-primary">
-            <Compass className="h-4 w-4" /> Explore the library
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link to="/discover" data-testid="home-discover-cta" className="pill pill-primary">
+              <Compass className="h-4 w-4" /> Explore the library
+            </Link>
+            <Link to="/meditations" data-testid="home-meditations-cta" className="pill pill-ghost !bg-white/10 !text-white !border-white/20 hover:!bg-white/20">
+              <Moon className="h-4 w-4" /> Meditation &amp; Breathwork
+            </Link>
+          </div>
         </div>
         <div className="hidden lg:grid grid-cols-2 gap-3">
           {["https://images.unsplash.com/photo-1506126279646-a697353d3166?w=400&q=80",
@@ -385,8 +390,6 @@ function DiscoverStrip() {
 }
 
 const COMING_SOON = [
-  { icon: Moon, title: "Yoga Nidra", desc: "Deep guided rest for sleep & recovery" },
-  { icon: Wind, title: "Breathwork", desc: "Pranayama & nervous-system resets" },
   { icon: User, title: "Private sessions", desc: "1:1 practice with Tony" },
   { icon: GraduationCap, title: "Teacher training", desc: "CE-eligible advanced study" },
   { icon: Flame, title: "Challenges", desc: "30-day practice streaks" },
@@ -399,7 +402,7 @@ function ComingSoon() {
         <div className="eyebrow mb-2">On the way</div>
         <h2 className="serif text-2xl sm:text-3xl leading-tight">More practice, coming soon.</h2>
       </div>
-      <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="home-coming-soon">
+      <ul className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl" data-testid="home-coming-soon">
         {COMING_SOON.map((c) => (
           <li key={c.title} className="rounded-2xl bg-[#F2F2EC] border border-[#E5E6DF] p-4 flex flex-col gap-2">
             <div className="h-9 w-9 rounded-full bg-white flex items-center justify-center text-[#B25A45] shrink-0">

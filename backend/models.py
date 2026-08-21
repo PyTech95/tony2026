@@ -248,6 +248,17 @@ class ProductCreate(BaseModel):
     variants: Optional[List[Dict[str, Any]]] = None
     external_amazon_link: Optional[str] = None
 
+class ProductUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    stock_qty: Optional[int] = None
+    images: Optional[List[str]] = None
+    visible: Optional[bool] = None
+    external_amazon_link: Optional[str] = None
+
 class AsanaCreate(BaseModel):
     name: str                       # English / common name
     sanskrit: Optional[str] = None
@@ -275,6 +286,36 @@ class AsanaUpdate(BaseModel):
     start_seconds: Optional[int] = None
     end_seconds: Optional[int] = None
     program_id: Optional[str] = None
+    order_index: Optional[int] = None
+    is_published: Optional[bool] = None
+
+class MeditationCreate(BaseModel):
+    title: str
+    kind: str = "meditation"          # meditation | breathwork | nidra
+    media_kind: str = "video"         # video | audio
+    youtube_url: Optional[str] = None
+    audio_url: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    focus_areas: Optional[List[str]] = None
+    level: Optional[str] = "beginner"
+    language: Optional[str] = "both"
+    cover_image: Optional[str] = None
+    description: Optional[str] = None
+    order_index: Optional[int] = None
+    is_published: bool = True
+
+class MeditationUpdate(BaseModel):
+    title: Optional[str] = None
+    kind: Optional[str] = None
+    media_kind: Optional[str] = None
+    youtube_url: Optional[str] = None
+    audio_url: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    focus_areas: Optional[List[str]] = None
+    level: Optional[str] = None
+    language: Optional[str] = None
+    cover_image: Optional[str] = None
+    description: Optional[str] = None
     order_index: Optional[int] = None
     is_published: Optional[bool] = None
 

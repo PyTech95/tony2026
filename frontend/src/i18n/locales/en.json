@@ -260,5 +260,27 @@
   "join.failed": "Could not create account",
 
   "ht.coming": "Video coming soon",
-  "ht.filmed": "Filmed with real students"
+  "ht.filmed": "Filmed with real students",
+
+  "disc.eyebrow": "Explore",
+  "disc.title": "Discover",
+  "disc.sub": "Browse every program and on-demand class. Filter by what you need today — a focus, a level, or the minutes you have.",
+  "disc.search": "Search classes & programs…",
+  "disc.all": "All",
+  "disc.programs": "Programs",
+  "disc.classes": "Classes",
+  "disc.filters": "Filters",
+  "disc.focus": "Focus",
+  "disc.level": "Level",
+  "disc.style": "Style",
+  "disc.duration": "Duration",
+  "disc.language": "Language",
+  "disc.classes_only": "Classes only",
+  "disc.clear": "Clear all filters",
+  "disc.empty": "Nothing matches those filters yet.",
+  "disc.reset": "Reset filters",
+  "disc.result": "result",
+  "disc.results": "results",
+  "disc.program": "Program",
+  "disc.class": "Class"
 }

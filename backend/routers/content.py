@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, Request
 from core import api, db, now_utc, gen_id, get_current_user, get_optional_user, require_role
 from models import (
     ProgramCreate, ProgramUpdate, VideoCreate, VideoUpdate,
-    ProgramLesson, ProgramLessonUpdate, ProductCreate,
+    ProgramLesson, ProgramLessonUpdate, ProductCreate, ProductUpdate,
     MembershipPlanCreate, AnnouncementCreate,
     LessonUpsert, LessonPatch, LessonReorder, LessonBulk,
 )
@@ -509,9 +509,35 @@ async def create_product(payload: ProductCreate, request: Request):
     return doc
 
 
+@api.patch("/admin/products/{product_id}")
+async def update_product(product_id: str, payload: ProductUpdate, request: Request):
+    await require_role(request, ["admin"])
+    updates = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None}
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+    updates["updated_at"] = now_utc().isoformat()
+    res = await db.products.update_one({"id": product_id}, {"$set": updates})
+    if not res.matched_count:
+        raise HTTPException(404, "Product not found")
+    return await db.products.find_one({"id": product_id}, {"_id": 0})
+
+
+@api.delete("/admin/products/{product_id}")
+async def delete_product(product_id: str, request: Request):
+    await require_role(request, ["admin"])
+    await db.products.delete_one({"id": product_id})
+    return {"ok": True}
+
+
+@api.get("/admin/products")
+async def admin_list_products(request: Request):
+    await require_role(request, ["admin"])
+    return await db.products.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+
 @api.get("/products")
 async def list_products(category: Optional[str] = None):
-    query: Dict[str, Any] = {}
+    query: Dict[str, Any] = {"visible": {"$ne": False}}
     if category: query["category"] = category
     return await db.products.find(query, {"_id": 0}).to_list(500)
 
