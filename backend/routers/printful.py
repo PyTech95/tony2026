@@ -17,6 +17,14 @@ PRINTFUL_STORE_ID = os.environ.get("PRINTFUL_STORE_ID")
 BASE = "https://api.printful.com"
 
 
+def _img_url(u: str) -> str:
+    """The old WordPress domain tonyoga.com now serves the web app (images 404),
+    but the same media still lives on tonyoga.online (no hotlink protection)."""
+    if not u:
+        return u
+    return u.replace("://www.tonyoga.com/", "://tonyoga.online/").replace("://tonyoga.com/", "://tonyoga.online/")
+
+
 def _headers(store_id=None):
     if not PRINTFUL_TOKEN:
         raise HTTPException(400, "Printful is not configured (missing PRINTFUL_TOKEN).")
@@ -46,6 +54,7 @@ def _normalize(full: dict) -> dict:
     variants: List[dict] = []
     prices = []
     currency = "usd"
+    cdn_imgs: List[str] = []  # Printful CDN images (load anywhere)
     for v in svs:
         try:
             price = float(v.get("retail_price") or 0)
@@ -56,6 +65,10 @@ def _normalize(full: dict) -> dict:
         currency = (v.get("currency") or currency).lower()
         files = v.get("files", [])
         imgs = [f.get("preview_url") for f in files if f.get("preview_url")]
+        pimg = (v.get("product") or {}).get("image")
+        if pimg:
+            imgs.append(pimg)
+        cdn_imgs += imgs
         variants.append({
             "printful_variant_id": v.get("id"),
             "catalog_variant_id": v.get("variant_id"),
@@ -66,12 +79,16 @@ def _normalize(full: dict) -> dict:
             "images": imgs,
             "available": v.get("availability_status", "active") != "discontinued",
         })
-    cover = sp.get("thumbnail_url")
-    all_imgs = ([cover] if cover else []) + [i for v in variants for i in v["images"]]
+    # Prefer Printful CDN images; fall back to the (proxied) platform thumbnail.
+    ordered = list(dict.fromkeys(cdn_imgs))
+    thumb = sp.get("thumbnail_url")
+    if thumb:
+        ordered.append(thumb)
+    all_imgs = [_img_url(u) for u in dict.fromkeys(ordered) if u]
     return {
         "printful_product_id": sp.get("id"),
         "title": sp.get("name", "Untitled"),
-        "images": list(dict.fromkeys(all_imgs))[:8],
+        "images": all_imgs[:8],
         "variants": variants,
         "price": round(min(prices), 2) if prices else 0.0,
         "currency": currency,
@@ -151,6 +168,7 @@ async def printful_sync(request: Request):
             existing = await db.products.find_one({"printful_product_id": doc["printful_product_id"]})
             pf_owned = {
                 "variants": doc["variants"],
+                "images": doc["images"],
                 "source": "printful",
                 "printful_synced_at": now_utc().isoformat(),
             }
