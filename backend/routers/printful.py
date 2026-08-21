@@ -17,17 +17,23 @@ PRINTFUL_STORE_ID = os.environ.get("PRINTFUL_STORE_ID")
 BASE = "https://api.printful.com"
 
 
-def _headers():
+def _headers(store_id=None):
     if not PRINTFUL_TOKEN:
         raise HTTPException(400, "Printful is not configured (missing PRINTFUL_TOKEN).")
     h = {"Authorization": f"Bearer {PRINTFUL_TOKEN}", "Content-Type": "application/json"}
-    if PRINTFUL_STORE_ID:
-        h["X-PF-Store-Id"] = PRINTFUL_STORE_ID
+    sid = store_id or PRINTFUL_STORE_ID
+    if sid:
+        h["X-PF-Store-Id"] = str(sid)
     return h
 
 
-async def _pf_get(client: httpx.AsyncClient, path: str, **kw):
-    r = await client.get(f"{BASE}{path}", headers=_headers(), **kw)
+async def _selected_store_id():
+    meta = await db.app_settings.find_one({"key": "printful_sync"}, {"_id": 0})
+    return (meta or {}).get("store_id") or PRINTFUL_STORE_ID
+
+
+async def _pf_get(client: httpx.AsyncClient, path: str, store_id=None, **kw):
+    r = await client.get(f"{BASE}{path}", headers=_headers(store_id), **kw)
     if r.status_code >= 400:
         raise HTTPException(502, f"Printful error {r.status_code}: {r.text[:200]}")
     body = r.json()
@@ -80,11 +86,39 @@ async def printful_status(request: Request):
     count = await db.products.count_documents({"source": "printful"})
     return {
         "configured": cfg,
-        "store_id": PRINTFUL_STORE_ID,
+        "store_id": (meta or {}).get("store_id") or PRINTFUL_STORE_ID,
         "synced_products": count,
         "last_sync": (meta or {}).get("last_sync"),
         "last_result": (meta or {}).get("last_result"),
     }
+
+
+@api.get("/admin/printful/stores")
+async def printful_stores(request: Request):
+    """List all Printful stores on the account with a live product count each."""
+    await require_role(request, ["admin"])
+    if not PRINTFUL_TOKEN:
+        raise HTTPException(400, "Printful is not configured (missing PRINTFUL_TOKEN).")
+    selected = await _selected_store_id()
+    out = []
+    async with httpx.AsyncClient(timeout=40) as client:
+        stores = await _pf_get(client, "/stores")
+        for st in (stores or []):
+            sid = st.get("id")
+            count = None
+            try:
+                r = await client.get(
+                    f"{BASE}/sync/products", headers=_headers(sid),
+                    params={"limit": 1, "offset": 0},
+                )
+                if r.status_code < 400:
+                    count = ((r.json() or {}).get("paging") or {}).get("total")
+            except Exception:
+                count = None
+            out.append({
+                "id": sid, "name": st.get("name"), "type": st.get("type"), "product_count": count,
+            })
+    return {"stores": out, "selected_store_id": str(selected) if selected else None}
 
 
 @api.post("/admin/printful/sync")
@@ -92,20 +126,27 @@ async def printful_sync(request: Request):
     await require_role(request, ["admin"])
     if not PRINTFUL_TOKEN:
         raise HTTPException(400, "Printful is not configured (missing PRINTFUL_TOKEN).")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    store_id = str(body.get("store_id") or "").strip() or await _selected_store_id()
+    if not store_id:
+        raise HTTPException(400, "No Printful store selected.")
     created = updated = 0
-    async with httpx.AsyncClient(timeout=40) as client:
-        # Paginate the sync-product list
+    async with httpx.AsyncClient(timeout=60) as client:
+        # Paginate the sync-product list (works for platform stores too)
         summaries: List[dict] = []
         offset = 0
         while True:
-            page = await _pf_get(client, "/store/products", params={"offset": offset, "limit": 100})
+            page = await _pf_get(client, "/sync/products", store_id=store_id, params={"offset": offset, "limit": 100})
             items = page if isinstance(page, list) else page.get("items", [])
             summaries += items
             if len(items) < 100:
                 break
             offset += 100
         for s in summaries:
-            full = await _pf_get(client, f"/store/products/{s['id']}")
+            full = await _pf_get(client, f"/sync/products/{s['id']}", store_id=store_id)
             doc = _normalize(full)
             existing = await db.products.find_one({"printful_product_id": doc["printful_product_id"]})
             pf_owned = {
@@ -139,7 +180,7 @@ async def printful_sync(request: Request):
     result = {"created": created, "updated": updated, "total": created + updated}
     await db.app_settings.update_one(
         {"key": "printful_sync"},
-        {"$set": {"key": "printful_sync", "last_sync": now_utc().isoformat(), "last_result": result}},
+        {"$set": {"key": "printful_sync", "store_id": str(store_id), "last_sync": now_utc().isoformat(), "last_result": result}},
         upsert=True,
     )
     return result

@@ -8,16 +8,27 @@ function ProductsPane() {
   const [rows, setRows] = useState(null);
   const [status, setStatus] = useState(null);
   const [syncing, setSyncing] = useState(false);
+  const [stores, setStores] = useState(null);
+  const [storeId, setStoreId] = useState("");
   const ic = "w-full rounded-lg border border-[#E5E6DF] bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B25A45]";
 
   const load = () => api.get("/admin/products").then(({ data }) => setRows(data)).catch(() => setRows([]));
   const loadStatus = () => api.get("/admin/printful/status").then(({ data }) => setStatus(data)).catch(() => setStatus({ configured: false }));
-  useEffect(() => { load(); loadStatus(); }, []);
+  const loadStores = () => api.get("/admin/printful/stores").then(({ data }) => {
+    const list = data.stores || [];
+    setStores(list);
+    const sel = list.find((s) => String(s.id) === String(data.selected_store_id));
+    // Prefer the persisted store only if it has products; otherwise pick the fullest store.
+    const best = [...list].sort((a, b) => (b.product_count || 0) - (a.product_count || 0))[0];
+    const pick = sel && sel.product_count > 0 ? sel : (best || sel || list[0]);
+    setStoreId(String(pick?.id || ""));
+  }).catch(() => setStores([]));
+  useEffect(() => { load(); loadStatus(); loadStores(); }, []);
 
   const sync = async () => {
     setSyncing(true);
     try {
-      const { data } = await api.post("/admin/printful/sync");
+      const { data } = await api.post("/admin/printful/sync", { store_id: storeId });
       toast.success(`Synced — ${data.created} new, ${data.updated} updated`);
       load(); loadStatus();
     } catch (e) { toast.error(e?.response?.data?.detail || "Sync failed"); }
@@ -66,8 +77,26 @@ function ProductsPane() {
             <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} /> {syncing ? "Syncing…" : "Sync from Printful"}
           </button>
         </div>
+        {status?.configured && stores && stores.length > 0 && (
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            <label className="text-xs font-semibold text-[#545E56]">Store</label>
+            <select
+              value={storeId}
+              onChange={(e) => setStoreId(e.target.value)}
+              data-testid="printful-store-select"
+              className="rounded-lg border border-[#E5E6DF] bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B25A45]"
+            >
+              {stores.map((s) => (
+                <option key={s.id} value={String(s.id)}>
+                  {s.name} · {s.type}{s.product_count != null ? ` · ${s.product_count} products` : ""}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-[#6B7269]">Pick the store your products live in, then Sync.</span>
+          </div>
+        )}
         {status?.configured && status?.synced_products === 0 && (
-          <p className="text-xs text-[#6B7269] mt-2">Tip: products only sync from your Printful <b>Manual Order / API</b> store. Add products there, then sync.</p>
+          <p className="text-xs text-[#6B7269] mt-2">Tip: choose the store that shows a product count above (your Squarespace / WooCommerce store), then click Sync.</p>
         )}
       </div>
 
