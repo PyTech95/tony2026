@@ -1,22 +1,40 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Users, Calendar, TrendingUp, Send, Check, X, CreditCard, Mail, Bell, Save, RefreshCw, History, BookOpen, Plus, ArrowLeft, Trash2, ChevronUp, ChevronDown, Youtube, Play, Clock, Eye, EyeOff, ListPlus, Instagram, Wallet, ClipboardCheck, Package, GraduationCap, Award, MessageCircle, Video, Mic } from "lucide-react";
+import { Users, Calendar, TrendingUp, Send, Check, X, CreditCard, Mail, Bell, Save, RefreshCw, History, BookOpen, Plus, ArrowLeft, Trash2, ChevronUp, ChevronDown, Youtube, Play, Clock, Eye, EyeOff, ListPlus, Instagram, Wallet, ClipboardCheck, Package, GraduationCap, Award, MessageCircle, Video, Mic, LayoutDashboard, MountainSnow, Gift, Settings as SettingsIcon, Upload } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { api, API_BASE } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
 import { parseYouTubeId, isYouTube, secToMMSS, mmssToSec, youTubeThumb } from "@/lib/youtube";
 
-function Tab({ active, onClick, children, tid }) {
+const ADMIN_NAV = [
+  { key: "stats", label: "Overview", icon: LayoutDashboard },
+  { key: "courses", label: "Courses & Videos", icon: Youtube },
+  { key: "bundles", label: "Bundles", icon: Package },
+  { key: "students", label: "Students", icon: GraduationCap },
+  { key: "classes", label: "Classes", icon: Calendar },
+  { key: "apps", label: "Applications", icon: ClipboardCheck },
+  { key: "broadcast", label: "Broadcast", icon: Mic },
+  { key: "retreats", label: "Retreats", icon: MountainSnow },
+  { key: "giftcards", label: "Gift Cards", icon: Gift },
+  { key: "settings", label: "Settings", icon: SettingsIcon },
+  { key: "import", label: "Import", icon: Upload },
+];
+
+function AdminNavItem({ active, onClick, tid, icon: Icon, children }) {
   return (
     <button
       onClick={onClick}
       data-testid={tid}
-      className={`pill !py-2 !px-4 !text-[13px] ${active ? "pill-primary" : "pill-ghost"}`}
+      className={`group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[13.5px] font-semibold whitespace-nowrap transition-colors shrink-0 md:w-full ${
+        active
+          ? "bg-[#1C221F] text-[#FAFAF7]"
+          : "text-[#545E56] hover:bg-[#F2F2EC]"
+      }`}
     >
-      {children}
+      <Icon className={`h-[18px] w-[18px] shrink-0 ${active ? "text-[#E0A38F]" : "text-[#9AA096] group-hover:text-[#B25A45]"}`} strokeWidth={1.7} />
+      <span>{children}</span>
     </button>
   );
 }
@@ -1876,23 +1894,40 @@ export default function Admin() {
 
   return (
     <div data-testid="admin-page" className="pb-6">
-      <PageHeader eyebrow="Admin" title="Console" testId="admin-header" />
-      <div className="mx-auto max-w-2xl px-5 space-y-5">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar" data-testid="admin-tabs">
-          <Tab active={tab === "stats"} onClick={() => selectTab("stats")} tid="admin-tab-stats">Overview</Tab>
-          <Tab active={tab === "courses"} onClick={() => selectTab("courses")} tid="admin-tab-courses">Courses &amp; Videos</Tab>
-          <Tab active={tab === "bundles"} onClick={() => selectTab("bundles")} tid="admin-tab-bundles">Bundles</Tab>
-          <Tab active={tab === "students"} onClick={() => selectTab("students")} tid="admin-tab-students">Students</Tab>
-          <Tab active={tab === "classes"} onClick={() => selectTab("classes")} tid="admin-tab-classes">Classes</Tab>
-          <Tab active={tab === "apps"} onClick={() => selectTab("apps")} tid="admin-tab-apps">Applications</Tab>
-          <Tab active={tab === "broadcast"} onClick={() => selectTab("broadcast")} tid="admin-tab-broadcast">Broadcast</Tab>
-          <Tab active={tab === "retreats"} onClick={() => selectTab("retreats")} tid="admin-tab-retreats">Retreats</Tab>
-          <Tab active={tab === "giftcards"} onClick={() => selectTab("giftcards")} tid="admin-tab-giftcards">Gift Cards</Tab>
-          <Tab active={tab === "settings"} onClick={() => selectTab("settings")} tid="admin-tab-settings">Settings</Tab>
-          <Tab active={tab === "import"} onClick={() => selectTab("import")} tid="admin-tab-import">Import</Tab>
+      <header className="safe-top px-5 pt-6 pb-2">
+        <div className="mx-auto max-w-6xl">
+          <div className="eyebrow mb-2">Admin</div>
+          <h1 className="serif text-4xl sm:text-5xl font-medium" data-testid="admin-header">Console</h1>
         </div>
+      </header>
 
-        <div className="pt-2">
+      <div className="mx-auto max-w-6xl px-5 mt-4 md:flex md:gap-8 md:items-start">
+        {/* Sidebar — vertical on desktop, horizontal scroll on mobile */}
+        <aside className="md:w-60 md:shrink-0">
+          <div className="relative">
+            <nav
+              data-testid="admin-tabs"
+              className="flex md:flex-col gap-1.5 overflow-x-auto no-scrollbar pb-1 md:pb-0 md:sticky md:top-6 md:rounded-2xl md:bg-white md:border md:border-[#E5E6DF] md:p-2"
+            >
+              {ADMIN_NAV.map((item) => (
+                <AdminNavItem
+                  key={item.key}
+                  active={tab === item.key}
+                  onClick={() => selectTab(item.key)}
+                  tid={`admin-tab-${item.key}`}
+                  icon={item.icon}
+                >
+                  {item.label}
+                </AdminNavItem>
+              ))}
+            </nav>
+            {/* scroll affordance on mobile */}
+            <div className="md:hidden pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#FAFAF7] to-transparent" />
+          </div>
+        </aside>
+
+        {/* Content */}
+        <main className="flex-1 min-w-0 pt-5 md:pt-0">
           {tab === "stats" && <StatsPane />}
           {tab === "courses" && <CoursesPane />}
           {tab === "bundles" && <BundlesPane />}
@@ -1904,7 +1939,7 @@ export default function Admin() {
           {tab === "giftcards" && <GiftCardsPane />}
           {tab === "settings" && <SettingsPane />}
           {tab === "import" && <ImportPane />}
-        </div>
+        </main>
       </div>
     </div>
   );

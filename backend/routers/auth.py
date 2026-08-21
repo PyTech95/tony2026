@@ -81,6 +81,12 @@ async def register(payload: UserCreate, response: Response):
         })
     token = create_access_token(user["id"], email, user["role"])
     response.set_cookie("access_token", token, httponly=True, samesite="lax", max_age=7 * 86400, path="/")
+    # Best-effort welcome email to the new member (no-op if SMTP disabled).
+    try:
+        from email_service import send_welcome_email
+        await send_welcome_email(email, payload.name)
+    except Exception as e:
+        logger.warning(f"welcome email failed for {email}: {e}")
     user.pop("password_hash", None); user.pop("_id", None)
     return {"user": user, "token": token}
 

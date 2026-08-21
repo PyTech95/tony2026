@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 36: Verified the Admin console sidebar redesign (desktop + mobile) and smoke-tested the new email wiring. 16/16 backend pytest checks pass (login+httpOnly cookie, register->welcome email, assistant lead->enquiry ack, 11 admin/data endpoints, brute-force lockout). Frontend: all 11 sidebar items render as a VERTICAL sidebar on desktop (single x=413, 11 distinct y), no page or sidebar horizontal overflow (docScroll==docClient==1920, navScroll==navClient==238). All 11 tabs switch content, highlight active (bg-[#1C221F]) and update ?tab=. Deep-link /admin?tab=settings opens Settings with the Email/SMTP card and highlights the nav item. Mobile 390px: same nav collapses to a single-row horizontally scrollable strip (navScroll 1397 > client 350) with NO page overflow (docScroll 390). Regression: Retreats pane shows retreat-photo-upload, Overview shows dashboard stats, Import/Gift Cards/Broadcast/Courses/Students/Classes/Bundles panes all render. Zero console errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "CORS middleware (server.py:100)", "issue": "allow_origins defaults to '*' with allow_credentials=False. Login sets an httpOnly cookie which will therefore never be sent on any cross-origin request; per auth playbook prefer explicit origins + allow_credentials=True (works today only because FE/BE share the ingress origin and auth uses Bearer tokens)."},
+      {"endpoint": "seed.py:10", "issue": "ADMIN_PASSWORD falls back to a hardcoded default ('TonyYoga2026!'); should come from env only. seed_admin correctly updates the existing admin hash (idempotent) and hash format is $2b$12$ — OK."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin console — mobile (390px) nav strip", "issues": ["Scrollbar is hidden (no-scrollbar) and the strip is clipped mid-item with no fade/affordance, so it is not obvious more tabs exist to the right. Consider an edge fade or partial-peek indicator."]},
+      {"screen": "Admin console — desktop", "issues": ["No issues: sidebar sticky, adequate contrast (dark #1C221F active pill on #FAFAF7 text), consistent 46px item spacing, content pane aligned with header max-w-6xl."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration36.py", "/app/test_reports/pytest/it36.xml"],
+  "action_items": [
+    "Optional: add scroll affordance (edge fade) to the mobile admin nav strip.",
+    "Optional hardening: set explicit CORS_ORIGINS + allow_credentials=True if the httpOnly cookie is meant to be used, else drop the cookie.",
+    "Optional: remove hardcoded ADMIN_PASSWORD fallback in seed.py.",
+    "Housekeeping: a leftover manual test user 'test / test@g.com' exists in Students (not created by this run)."
+  ],
+  "critical_code_review_comments": [
+    "Admin.jsx is 1943 lines — well over the 700-line guideline. Each pane (StatsPane, CoursesPane, SettingsPane, ImportPane, RetreatsPane, GiftCardsPane...) should be extracted into src/pages/admin/*.jsx; the new ADMIN_NAV/AdminNavItem makes this split straightforward.",
+    "Sidebar layout is sound: `flex md:flex-col` + `overflow-x-auto` on the same node gives correct mobile/desktop behaviour with no residual page overflow; validTabs list is duplicated conceptually with ADMIN_NAV — derive validTabs from ADMIN_NAV.map(i => i.key) to avoid drift."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration36.py"],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% (11/11 tabs, desktop + mobile layout, deep-link)"},
+  "seed_data_creation": "Created 2 throwaway registered users (tonyyoga.qa+welcome*@gmail.com) and 4 ai_leads (TEST_QA) during smoke tests — ALL DELETED from MongoDB after the run (users: 2 deleted, ai_leads: 4 deleted).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "tony@tonyyoga.com / TonyYoga2026! (from /app/memory/test_credentials.md) — valid, login returns admin role + httpOnly cookie",
+  "context_for_next_testing_agent": "Admin sidebar redesign verified good on 1920px and 390px. Note DELETE /api/admin/students/{id} and /api/admin/users/{id} do not exist (404) — user cleanup must be done directly via motor/MongoDB. Correct admin endpoints: /api/admin/stats, /api/admin/stats/trend, /api/admin/dashboard, /api/admin/users, /api/admin/students/progress, /api/admin/instructor-applications, /api/class-instances, /api/programs, /api/admin/settings, /api/admin/gift-cards, /api/bundles (there is no /api/admin/students, /api/admin/classes, /api/admin/applications, /api/courses, /api/retreats). Emails DO actually send via live Gmail SMTP — always use plus-addressed throwaway addresses.",
+  "rca_of_the_issue": "N/A — no defects reproduced. Email wiring confirmed by backend log lines '[EMAIL sent] ... Welcome to Tony Yoga' and '[EMAIL sent] ... Thanks for your enquiry' matching the addresses generated by this test run."
+}

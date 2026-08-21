@@ -207,6 +207,14 @@ async def assistant_lead(payload: LeadIn, user: Optional[dict] = Depends(get_opt
     if payload.session_id:
         await db.chatbot_sessions.update_one({"id": payload.session_id}, {"$set": {"lead_id": lead["id"], "captured": True}})
 
+    # Best-effort acknowledgment email to the enquirer (no-op if SMTP disabled).
+    if payload.email:
+        try:
+            from email_service import send_enquiry_ack
+            await send_enquiry_ack(payload.email, payload.name, payload.interest)
+        except Exception as e:
+            logger.warning(f"enquiry ack email failed for {payload.email}: {e}")
+
     wa_number = (await get_setting("social_whatsapp")) or ""
     digits = "".join(ch for ch in wa_number if ch.isdigit())
     wa_url = ""

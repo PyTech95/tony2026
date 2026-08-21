@@ -124,6 +124,36 @@ async def send_password_reset(to: str, reset_url: str) -> bool:
     return await send_email(to, "Reset your Tony Yoga password", html, f"Reset link: {reset_url}")
 
 
+async def send_welcome_email(to: str, name: Optional[str] = None) -> bool:
+    """Registration confirmation sent to the new member's email."""
+    first = (name or "").split(" ")[0] if name else "there"
+    app_url = os.environ.get("FRONTEND_URL", "").rstrip("/") or None
+    body = (
+        f"Welcome, {first} — your Tony Yoga account is ready. "
+        "You now have a home for live classes, on-demand programs (Core 20, Core 40, Core 84) "
+        "and everything you need to keep your practice steady.<br/><br/>"
+        "Take a breath, and begin whenever you're ready."
+    )
+    html = _wrap("Welcome to the practice.", body,
+                 "Open Tony Yoga" if app_url else None, app_url)
+    return await send_email(to, "Welcome to Tony Yoga 🌿", html,
+                            f"Welcome {first} — your Tony Yoga account is ready.")
+
+
+async def send_enquiry_ack(to: str, name: Optional[str] = None, interest: Optional[str] = None) -> bool:
+    """Acknowledge an enquiry / lead, sent to the enquirer's email."""
+    first = (name or "").split(" ")[0] if name else "there"
+    focus = f" about <strong>{interest}</strong>" if interest else ""
+    body = (
+        f"Thank you for reaching out, {first}. We've received your enquiry{focus} and "
+        "Tony's team will get back to you shortly.<br/><br/>"
+        "In the meantime, feel free to explore the programs and live class schedule."
+    )
+    html = _wrap("We've got your message.", body)
+    return await send_email(to, "Thanks for your enquiry · Tony Yoga", html,
+                            f"Thanks {first} — we've received your enquiry and will reply shortly.")
+
+
 async def send_referral_invite(to: str, inviter_name: str, share_url: str, personal_note: Optional[str] = None) -> bool:
     note_html = f'<p style="margin:16px 0;padding:16px;background:#F2F2EC;border-radius:12px;font-style:italic;color:#1C221F;">"{personal_note}"</p>' if personal_note else ""
     body = (
