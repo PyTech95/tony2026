@@ -119,6 +119,7 @@ async def _can_play(user: Optional[dict], video: dict, lesson: Optional[dict], p
 @api.post("/admin/programs")
 async def create_program(payload: ProgramCreate, request: Request):
     await require_role(request, ["admin", "instructor"])
+    _validate_program_tags(payload.intensity, payload.focus_areas)
     doc = {**payload.model_dump(), "id": gen_id(), "created_at": now_utc().isoformat(), "rating": 0, "review_count": 0}
     await db.programs.insert_one(doc)
     doc.pop("_id", None)
@@ -131,6 +132,7 @@ async def update_program(program_id: str, payload: ProgramUpdate, request: Reque
     updates = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None}
     if not updates:
         raise HTTPException(400, "No fields to update")
+    _validate_program_tags(updates.get("intensity"), updates.get("focus_areas"))
     res = await db.programs.update_one({"id": program_id}, {"$set": updates})
     if res.matched_count == 0:
         raise HTTPException(404, "Program not found")
@@ -144,6 +146,116 @@ async def list_programs(level: Optional[str] = None, style: Optional[str] = None
     if level: query["level"] = level
     if style: query["style"] = style
     return await db.programs.find(query, {"_id": 0}).to_list(500)
+
+
+# ---- Content discovery (Phase 1: unified Explore across programs + on-demand classes) ----
+FOCUS_AREAS = ["Back care", "Flexibility", "Balance", "Strength", "Stress relief", "Sleep", "Energy", "Beginner basics"]
+INTENSITIES = ["gentle", "moderate", "strong"]
+DURATION_BUCKETS = ["5-15", "20-40", "60+"]
+
+
+def _validate_program_tags(intensity, focus_areas):
+    if intensity is not None and intensity not in INTENSITIES:
+        raise HTTPException(422, f"intensity must be one of {INTENSITIES}")
+    if focus_areas:
+        bad = [f for f in focus_areas if f not in FOCUS_AREAS]
+        if bad:
+            raise HTTPException(422, f"Unknown focus area(s): {bad}. Allowed: {FOCUS_AREAS}")
+
+
+def _video_minutes(v: dict):
+    if v.get("duration_minutes"):
+        return int(v["duration_minutes"])
+    s, e = v.get("start_seconds"), v.get("end_seconds")
+    if s is not None and e:
+        return max(1, round((e - s) / 60))
+    return None
+
+
+@api.get("/discover")
+async def discover(
+    type: Optional[str] = None, level: Optional[str] = None, style: Optional[str] = None,
+    focus: Optional[str] = None, language: Optional[str] = None, duration: Optional[str] = None,
+    teacher: Optional[str] = None, q: Optional[str] = None,
+):
+    want = (type or "all").lower()
+    items: List[dict] = []
+    if want in ("all", "program"):
+        for p in await db.programs.find({}, {"_id": 0}).to_list(500):
+            items.append({
+                "kind": "program", "id": p["id"], "title": p.get("title"),
+                "cover": p.get("cover_image"),
+                "level": p.get("level"), "style": p.get("style"),
+                "focus_areas": p.get("focus_areas") or [],
+                "intensity": p.get("intensity"), "language": p.get("language") or "both",
+                "teacher": p.get("teacher") or "Tony Sanchez",
+                "duration_label": (f'{p.get("duration_weeks")} weeks' if p.get("duration_weeks") else None),
+                "duration_minutes": None,
+                "price": p.get("price"), "price_model": p.get("price_model"),
+                "url": f'/programs/{p["id"]}',
+            })
+    if want in ("all", "class"):
+        for v in await db.videos.find({"visibility": {"$ne": "unlisted"}}, {"_id": 0}).to_list(2000):
+            m = _video_minutes(v)
+            items.append({
+                "kind": "class", "id": v["id"], "title": v.get("title"),
+                "cover": v.get("cover_image") or v.get("thumbnail") or (f'https://img.youtube.com/vi/{v.get("youtube_id")}/hqdefault.jpg' if v.get("youtube_id") else None),
+                "level": v.get("level"), "style": v.get("style"),
+                "focus_areas": v.get("focus_areas") or [],
+                "intensity": v.get("intensity"), "language": v.get("language") or "both",
+                "teacher": v.get("teacher") or "Tony Sanchez",
+                "duration_label": (f"{m} min" if m else None),
+                "duration_minutes": m,
+                "url": f'/library/{v["id"]}',
+            })
+
+    def keep(it):
+        if level and it["level"] != level: return False
+        if style and it["style"] != style: return False
+        if focus and focus not in (it["focus_areas"] or []): return False
+        if teacher and (it.get("teacher") != teacher): return False
+        if language and it["language"] not in (language, "both"): return False
+        if duration:
+            if it["kind"] != "class":
+                return False
+            m = it["duration_minutes"] or 0
+            if duration == "5-15" and not (m <= 15): return False
+            if duration == "20-40" and not (15 < m <= 40): return False
+            if duration == "60+" and not (m > 40): return False
+        if q and q.strip().lower() not in (it["title"] or "").lower(): return False
+        return True
+
+    return [it for it in items if keep(it)]
+
+
+@api.get("/discover/facets")
+async def discover_facets():
+    p_levels = await db.programs.distinct("level")
+    v_levels = await db.videos.distinct("level")
+    p_styles = await db.programs.distinct("style")
+    v_styles = await db.videos.distinct("style")
+    p_focus = await db.programs.distinct("focus_areas")
+    v_focus = await db.videos.distinct("focus_areas")
+    p_lang = await db.programs.distinct("language")
+    v_lang = await db.videos.distinct("language")
+    levels = sorted({x for x in (p_levels + v_levels) if x})
+    styles = sorted({x for x in (p_styles + v_styles) if x})
+    # Data-driven: only offer focus/language chips that actually match content
+    # (keeps the canonical order from FOCUS_AREAS, drops any with zero items).
+    present_focus = {x for x in (p_focus + v_focus) if x}
+    focus = [f for f in FOCUS_AREAS if f in present_focus] + sorted(present_focus - set(FOCUS_AREAS))
+    langs = sorted({x for x in (p_lang + v_lang) if x and x != "both"})
+    return {
+        "levels": levels,
+        "styles": styles,
+        "focus_areas": focus,
+        "intensities": INTENSITIES,
+        "languages": langs,  # empty when all content is bilingual → UI hides the filter
+        "durations": DURATION_BUCKETS,
+        "types": ["program", "class"],
+        "teachers": ["Tony Sanchez"],
+    }
+
 
 
 @api.get("/programs/{program_id}")

@@ -12,6 +12,7 @@ import ClassDetail from "@/pages/ClassDetail";
 import Programs from "@/pages/Programs";
 import ProgramDetail from "@/pages/ProgramDetail";
 import Asanas from "@/pages/Asanas";
+import Discover from "@/pages/Discover";
 import Library from "@/pages/Library";
 import VideoPlayer from "@/pages/VideoPlayer";
 import Memberships from "@/pages/Memberships";
@@ -75,6 +76,7 @@ export default function App() {
             <Route path="/programs" element={<Programs />} />
             <Route path="/programs/:id" element={<ProgramDetail />} />
             <Route path="/asanas" element={<Asanas />} />
+            <Route path="/discover" element={<Discover />} />
             <Route path="/library" element={<Library />} />
             <Route path="/library/:id" element={<VideoPlayer />} />
             <Route path="/memberships" element={<Memberships />} />

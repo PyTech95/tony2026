@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Play, Download, Menu, X, Check } from "lucide-react";
+import { ArrowRight, Play, Download, Menu, X, Check, Compass, Wind, Moon, GraduationCap, Flame, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
 import InstagramReels from "@/components/InstagramReels";
@@ -350,6 +350,72 @@ function Footer() {
   );
 }
 
+function DiscoverStrip() {
+  return (
+    <section id="discover" className="mx-auto max-w-6xl px-4 sm:px-6 py-14 sm:py-20">
+      <div className="rounded-3xl bg-[#1C221F] text-[#FAFAF7] p-8 sm:p-12 grid lg:grid-cols-[1.3fr,1fr] gap-8 items-center overflow-hidden relative">
+        <div>
+          <div className="eyebrow !text-[#B25A45] mb-3">Explore</div>
+          <h2 className="serif text-3xl sm:text-4xl lg:text-5xl leading-tight mb-4">Find the right practice for today.</h2>
+          <p className="text-white/70 leading-relaxed max-w-md text-sm sm:text-base mb-6">
+            Filter the whole library by focus, level, style and the minutes you have — from a 5-minute reset to a full Core sequence.
+          </p>
+          <div className="flex flex-wrap gap-2 mb-7">
+            {["Back care", "Flexibility", "Stress relief", "5-15 min", "Beginner"].map((x) => (
+              <span key={x} className="text-xs rounded-full bg-white/10 px-3 py-1.5 text-white/80">{x}</span>
+            ))}
+          </div>
+          <Link to="/discover" data-testid="home-discover-cta" className="pill pill-primary">
+            <Compass className="h-4 w-4" /> Explore the library
+          </Link>
+        </div>
+        <div className="hidden lg:grid grid-cols-2 gap-3">
+          {["https://images.unsplash.com/photo-1506126279646-a697353d3166?w=400&q=80",
+            "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&q=80",
+            "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=400&q=80",
+            "https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=400&q=80"].map((src, i) => (
+            <div key={i} className={`rounded-2xl overflow-hidden aspect-square ${i % 2 ? "translate-y-4" : ""}`}>
+              <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const COMING_SOON = [
+  { icon: Moon, title: "Yoga Nidra", desc: "Deep guided rest for sleep & recovery" },
+  { icon: Wind, title: "Breathwork", desc: "Pranayama & nervous-system resets" },
+  { icon: User, title: "Private sessions", desc: "1:1 practice with Tony" },
+  { icon: GraduationCap, title: "Teacher training", desc: "CE-eligible advanced study" },
+  { icon: Flame, title: "Challenges", desc: "30-day practice streaks" },
+];
+
+function ComingSoon() {
+  return (
+    <section id="coming-soon" className="mx-auto max-w-6xl px-4 sm:px-6 pb-14 sm:pb-20">
+      <div className="mb-6">
+        <div className="eyebrow mb-2">On the way</div>
+        <h2 className="serif text-2xl sm:text-3xl leading-tight">More practice, coming soon.</h2>
+      </div>
+      <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="home-coming-soon">
+        {COMING_SOON.map((c) => (
+          <li key={c.title} className="rounded-2xl bg-[#F2F2EC] border border-[#E5E6DF] p-4 flex flex-col gap-2">
+            <div className="h-9 w-9 rounded-full bg-white flex items-center justify-center text-[#B25A45] shrink-0">
+              <c.icon className="h-4 w-4" />
+            </div>
+            <div className="text-sm font-semibold text-[#1C221F] leading-tight">{c.title}</div>
+            <div className="text-[11px] text-[#6B7269] leading-snug flex-1">{c.desc}</div>
+            <span className="text-[9px] uppercase tracking-widest font-bold text-[#B25A45]">Coming soon</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+
 export default function Marketing() {
   const openApp = () => {
     // If already installed as PWA, go to home; else route into the app shell.
@@ -368,6 +434,8 @@ export default function Marketing() {
       <Story />
       <ValueProps />
       <Programs />
+      <DiscoverStrip />
+      <ComingSoon />
       <Retreats />
       <HeroTestimonial />
       <Testimonials />

@@ -528,6 +528,34 @@ async def seed():
             })
         await db.asanas.insert_many(docs)
 
+    # Backfill discovery tags (focus/intensity/language) on programs + on-demand videos
+    _FMAP = {"beginner": "gentle", "intermediate": "moderate", "advanced": "strong"}
+    _FOCUS_ALL = ["Back care", "Flexibility", "Balance", "Strength", "Stress relief", "Sleep", "Energy", "Beginner basics"]
+    def _focus(title, level):
+        t = (title or "").lower(); f = set()
+        if "back" in t or "cobra" in t or "locust" in t or "bow" in t or "camel" in t or "backbend" in t: f.update(["Back care", "Flexibility"])
+        if "standing" in t or "triangle" in t or "warrior" in t or "balanc" in t or "eagle" in t or "tree" in t: f.update(["Balance", "Strength"])
+        if "core 40" in t: f.update(["Strength", "Balance"])
+        if "core 84" in t or (level or "") == "advanced": f.update(["Strength", "Flexibility"])
+        if "core 26" in t or (level or "") == "beginner": f.update(["Beginner basics", "Flexibility"])
+        if "forward" in t or "stretch" in t or "split" in t: f.add("Flexibility")
+        if "breath" in t or "pranayama" in t or "medit" in t or "savasana" in t or "relax" in t or "nidra" in t or "yin" in t or "restor" in t: f.update(["Stress relief", "Sleep"])
+        return f
+    for _coll in (db.programs, db.videos):
+        _idx = 0
+        async for _doc in _coll.find({}).sort("title", 1):
+            _upd = {}
+            if not _doc.get("focus_areas"):
+                _f = _focus(_doc.get("title"), _doc.get("level"))
+                if _coll is db.videos:
+                    _f.add(_FOCUS_ALL[_idx % len(_FOCUS_ALL)])  # rotate → every focus chip has content
+                _upd["focus_areas"] = sorted(_f) or ["Flexibility", "Strength"]
+            if not _doc.get("intensity"): _upd["intensity"] = _FMAP.get((_doc.get("level") or "").lower(), "moderate")
+            if not _doc.get("language"): _upd["language"] = "both"
+            if _upd: await _coll.update_one({"id": _doc["id"]}, {"$set": _upd})
+            _idx += 1
+
+
     try:
         await db.class_instances.create_index("start_time")
         await db.bookings.create_index([("user_id", 1), ("class_instance_id", 1)])

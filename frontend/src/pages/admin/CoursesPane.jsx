@@ -307,13 +307,16 @@ function CoursesPane() {
       price: p.price ?? 0, currency: p.currency || "eur", price_model: p.price_model || "one_time",
       cover_image: p.cover_image || "", benefits: (p.benefits || []).join("\n"),
       demo_video_url: p.demo_video_url || "",
+      focus_areas: p.focus_areas || [],
+      intensity: p.intensity || "moderate",
+      language: p.language || "both",
       related_product_ids: p.related_product_ids || [],
       drip_enabled: !!p.drip_enabled, drip_interval_days: p.drip_interval_days ?? 7,
     });
   };
   const openNew = () => {
     setEditing({ __new: true });
-    setForm({ title: "", description: "", level: "beginner", style: "Hatha", duration_weeks: 4, price: 0, currency: "eur", price_model: "one_time", cover_image: "", benefits: "", demo_video_url: "", related_product_ids: [], drip_enabled: false, drip_interval_days: 7 });
+    setForm({ title: "", description: "", level: "beginner", style: "Hatha", duration_weeks: 4, price: 0, currency: "eur", price_model: "one_time", cover_image: "", benefits: "", demo_video_url: "", focus_areas: [], intensity: "moderate", language: "both", related_product_ids: [], drip_enabled: false, drip_interval_days: 7 });
   };
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -331,6 +334,9 @@ function CoursesPane() {
       currency: form.currency, price_model: form.price_model, cover_image: form.cover_image || null,
       benefits: form.benefits.split("\n").map((b) => b.trim()).filter(Boolean),
       demo_video_url: form.demo_video_url || "",
+      focus_areas: form.focus_areas || [],
+      intensity: form.intensity || null,
+      language: form.language || null,
       related_product_ids: form.related_product_ids || [],
       drip_enabled: !!form.drip_enabled, drip_interval_days: Number(form.drip_interval_days) || 7,
     };
@@ -385,6 +391,33 @@ function CoursesPane() {
             <input data-testid="course-demo-video" className={inputCls2} value={form.demo_video_url} onChange={(e) => set("demo_video_url", e.target.value)} placeholder="https://www.youtube.com/watch?v=…" />
             {form.demo_video_url && !parseYouTubeId(form.demo_video_url) && <div className="text-xs text-[#B25A45] mt-1">Not a recognized YouTube link.</div>}
           </Field>
+
+          <Field label="Focus areas" hint="Used by the Discover filters. Tap to toggle.">
+            <div className="flex flex-wrap gap-2" data-testid="course-focus-areas">
+              {["Back care","Flexibility","Balance","Strength","Stress relief","Sleep","Energy","Beginner basics"].map((fa) => {
+                const on = (form.focus_areas || []).includes(fa);
+                return (
+                  <button key={fa} type="button" data-testid={`course-focus-${fa}`}
+                    onClick={() => set("focus_areas", on ? form.focus_areas.filter((x) => x !== fa) : [...(form.focus_areas || []), fa])}
+                    className={`pill !py-1.5 !px-3 !text-[12px] ${on ? "pill-primary" : "pill-ghost"}`}>{fa}</button>
+                );
+              })}
+            </div>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Intensity">
+              <select data-testid="course-intensity" className={inputCls2} value={form.intensity} onChange={(e) => set("intensity", e.target.value)}>
+                {["gentle","moderate","strong"].map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            </Field>
+            <Field label="Language">
+              <select data-testid="course-language" className={inputCls2} value={form.language} onChange={(e) => set("language", e.target.value)}>
+                <option value="both">EN & ES</option>
+                <option value="en">English</option>
+                <option value="es">Español</option>
+              </select>
+            </Field>
+          </div>
           <Field label="Benefits (one per line)"><textarea data-testid="course-benefits" rows={4} className={inputCls2} value={form.benefits} onChange={(e) => set("benefits", e.target.value)} /></Field>
 
           <Field label="Related products" hint="Books, mats & gear to sell alongside this course — shown on the course page and under each lesson video.">

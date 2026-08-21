@@ -1,0 +1,40 @@
+{
+  "summary": "Phase 1 discovery testing: 28 pytest cases against /api/discover + /api/discover/facets + admin program tag PATCH + regressions (27 pass, 1 fail = data gap). Frontend Playwright: /discover (load, type tabs, filter panel, focus/duration chips, clear-all, search, card nav, mobile 390px), homepage Discover CTA + 5 coming-soon teasers, admin course tag editor (focus chips + intensity + language) with reload persistence and /api/discover reflection, plus /programs/:id and /asanas regression. All UI flows passed with zero console errors. Auth playbook spot-check: bcrypt $2b$ hash, HttpOnly+Secure+SameSite=None cookie on login, admin role intact.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/discover?focus=Energy", "issue": "Seed backfill never assigns 'Energy' (seed.py _focus() has no rule for it) -> facet chip returns 0 results / empty state. 'Balance', 'Stress relief', 'Sleep' have only 1 item each while 'Flexibility' has 68/72, so the taxonomy barely discriminates. Counts: Back care 6, Flexibility 68, Balance 1, Strength 42, Stress relief 1, Sleep 1, Energy 0, Beginner basics 27."},
+      {"endpoint": "GET /api/discover?language=en|es", "issue": "All 72 items are backfilled language='both', so both language chips return the identical full 72 results — the Language filter is a no-op for users."},
+      {"endpoint": "PATCH /api/admin/programs/{id}", "issue": "No server-side validation of the new tag fields: intensity='nuclear' and focus_areas=['Not A Focus'] are accepted with 200 and persisted, which would pollute Discover filtering. Unauthenticated PATCH correctly returns 401."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/discover", "issues": ["Page copy is English-only even with ES locale active (known Phase-1 follow-up)", "Selecting the 'Energy' focus chip always shows the 'Nothing matches those filters yet' empty state — dead-end filter caused by the backfill gap", "Language chips (English/Español) never change the result count (72 -> 72)"]},
+      {"screen": "Homepage coming-soon strip", "issues": ["'Meditations — Coming soon' teaser conflicts with the existing 'Meditation' style class already published in the library/Discover facets"]},
+      {"screen": "/library/:id (pre-existing)", "issues": ["YouTube embed for lesson bcde4f96-2f2e-4c3f-8a28-9f1eec93f4c9 renders 'Video unavailable' — pre-existing seed/video-id issue, not related to Phase 1"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration44.py", "/app/test_reports/pytest/iteration44.xml"],
+  "action_items": [
+    "Extend seed.py _focus() so 'Energy' (and more balanced Balance/Sleep/Stress relief) tags are assigned; today the Energy chip is a guaranteed empty state.",
+    "Either give some content language='en'/'es' or hide the Language filter until multilingual content exists — currently both chips return all 72 items.",
+    "Validate intensity (enum gentle/moderate/strong) and focus_areas (must be in FOCUS_AREAS) in the admin program PATCH payload.",
+    "Optional: hide/disable Discover facet chips that would yield 0 results, or show counts per chip."
+  ],
+  "critical_code_review_comments": [
+    "routers/content.py discover(): loads all programs + up to 2000 videos into memory and filters in Python on every request — acceptable at 72 items but will not scale; move filters into the Mongo query when the library grows.",
+    "discover_facets() returns the static FOCUS_AREAS/INTENSITIES lists rather than values actually present in data, which is why the Energy chip surfaces with zero results.",
+    "Program tag fields (focus_areas/intensity/language) are not constrained by Pydantic Literal/enum in the admin update path."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration44.py"],
+  "success_rate": {"backend": "96% (27/28)", "frontend": "100% of tested flows"},
+  "seed_data_creation": "None. Temporarily edited Core 26+ program tags via admin UI/API for the persistence test and restored them to seed values (focus_areas=[Beginner basics, Flexibility], intensity=gentle, language=both).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "Admin tony@tonyyoga.com / TonyYoga2026! (from /app/memory/test_credentials.md) — worked",
+  "context_for_next_testing_agent": "Discover API + page + homepage strips + admin tag editor all functionally working. Only open items are data-quality (Energy focus never assigned, all content language='both') and missing enum validation on admin program PATCH. Admin program update route is PATCH /api/admin/programs/{id} (PUT returns 405). Discover totals at test time: 72 items = 3 programs + 69 classes; focus=Back care -> 6; type=class&duration=5-15 -> 6. Do NOT register users or submit checkout/free-class forms (SMTP + payments live).",
+  "rca_of_the_issue": "seed.py _focus(title, level) derives focus tags from title/level keywords only; no branch emits 'Energy', and language is hardcoded to 'both' for every doc — so two of the eight focus chips and the whole Language facet are non-functional in the UI even though the API filter logic itself is correct (verified: unknown focus returns [] with 200, buckets are disjoint and cover all 69 classes)."
+}
