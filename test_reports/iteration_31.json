@@ -1,0 +1,40 @@
+{
+  "summary": "Frontend-only verification of the React 'insertBefore / NotFoundError' crash fix in VideoPlayer.jsx, using the REAL YouTube IFrame API (no window.YT stub, per request). Logged in as tony@tonyyoga.com and exercised both reported lessons (/library/bcde4f96-... and /library/efa56e07-...). Confirmed the real YT API loaded and REPLACED the React-managed mount node (exactly 1 <iframe> inside [data-testid='video-youtube'], wrapper still has 4 stable children: mount-wrapper, ClipChip, play button, BottomBar). Then forced heavy overlay re-renders after the node replacement: custom play/pause x3, mute toggle x4, 3 clip-progress seeks, fullscreen enter/exit, resume-continue, SPA navigation A->B->A, and unmount-while-playing. RESULT: PASS on every criterion — 0 pageerror events, 0 console errors, no 'insertBefore'/'NotFoundError' anywhere, no CRA/react-error-overlay iframe, no 'Uncaught runtime errors' text, no white screen, and all custom controls (video-youtube, yt-toggle-play, clip-progress-track, player-mute, player-fullscreen, resume-banner, clip-duration-chip) present and interactive. The 'Video unavailable' YouTube frame in the sandbox is expected and does not affect the verdict.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "VideoPlayer /library/{id}", "issues": ["Carried-over minor: clip bar labels (10px #9AA096 on #FAFAF7) ~2.3:1 contrast, below WCAG AA.", "The custom red play button renders on top of YouTube's 'Video unavailable' message in this sandbox; harmless here, but there is no error state if a real video ID is unavailable/blocked for an end user (onError of the YT player is not handled)."]},
+      {"screen": "Library grid", "issues": ["Program lesson cards show a LOCK badge for the admin account even though the detail page opens those same lessons unlocked (staff bypass) — list vs detail unlock computation appears inconsistent."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_31.json"],
+  "action_items": [
+    "No action required for the reported bug — the stable-wrapper fix resolves the insertBefore/NotFoundError crash; verified with the real YouTube IFrame API on both crash URLs.",
+    "Optional: handle the YT player 'onError' event so a genuinely unavailable/blocked video shows an app-level message instead of only YouTube's internal frame.",
+    "Optional: align the Library grid lock badge with the detail-page unlock rule for staff/admin users.",
+    "Optional (carried over): raise clip-bar label contrast."
+  ],
+  "critical_code_review_comments": [
+    "The fix is structurally correct: the YT mount div is the SOLE child of a stable absolutely-positioned wrapper, so React never has to reorder siblings across the node YouTube replaces. Keep it that way — adding any sibling inside that inner wrapper would reintroduce the crash.",
+    "loadYT() overwrites window.onYouTubeIframeAPIReady but chains the previous handler, and ytApiPromise is module-scoped — safe for repeat mounts (verified across A->B->A navigation).",
+    "The build effect guards with `cancelled` and `ytHostRef.current` before new YT.Player, and cleanup destroys the player + clears the poll interval; navigating away mid-play produced no errors.",
+    "VideoPlayer.jsx is ~470 lines with two near-duplicate control-overlay blocks (yt/native) — still worth extracting a shared <PlayOverlay/> (repeat of iterations 29/30 comment)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "100% (all pass criteria met on both lesson URLs)"},
+  "seed_data_creation": "None created. NOTE: pre-existing watch_progress rows were present for tony@tonyyoga.com (resume banners showed 10:00 and 9:39), and my resume-continue/play interactions may have written additional progress rows for both videos.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "tony@tonyyoga.com / TonyYoga2026! (used; only account with unlocked lessons)",
+  "detailed_results": [
+    "PASS bcde4f96: container rendered, real YT iframe replaced mount node (1 iframe, 4 stable wrapper children), click yt-toggle-play + mute + seek + pause -> no overlay, no errors, all 5 control testids present.",
+    "PASS efa56e07: same result.",
+    "PASS stress on bcde4f96: 4x mute toggle, 3x play/pause, 3x clip seeks, fullscreen enter/Escape, resume-continue (banner removed) -> 0 errors at every checkpoint.",
+    "PASS SPA remount cycle A->B->A with play click after each mount -> 0 errors, iframe re-created each time.",
+    "PASS unmount while playing (navigate to /library) -> 0 errors, no detached-node exception from destroy/cleanup."
+  ],
+  "context_for_next_testing_agent": "The insertBefore crash is fixed and verified WITHOUT stubbing window.YT — the real YouTube IFrame API does load in this sandbox and does replace the mount node (it renders a 'Video unavailable' frame), which is enough to reproduce the original conditions. For functional playback assertions (progress saving, segment end lock, auto-advance) you still need the window.YT add_init_script stub from iterations 27-30. Use tony@tonyyoga.com; student@demo.com has no membership so all lessons are locked. Consider clearing watch_progress rows before resume-banner tests.",
+  "rca_of_the_issue": "Original crash: the YouTube IFrame API physically replaces the React-managed mount <div> with its own <iframe>. That div was a direct sibling of the overlay elements (ClipChip / play button / BottomBar), so any overlay re-render (setPlaying on play, the 400ms clipPct poll, setMuted in onReady) made React call insertBefore referencing the now-detached mount node -> NotFoundError and a fatal dev overlay. Fix verified: the mount div is now the lone child of a stable absolutely-positioned wrapper and all overlays are siblings of that wrapper, so React never reorders siblings around the replaced node. No reproduction after 20+ overlay re-renders across both reported URLs."
+}

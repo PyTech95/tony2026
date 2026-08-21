@@ -301,8 +301,14 @@ export default function VideoPlayer() {
         {playable ? (
           youtube ? (
             <div ref={wrapRef} className="relative rounded-3xl overflow-hidden bg-black aspect-video" data-testid="video-youtube">
+              {/* Isolated player mount: the YouTube IFrame API REPLACES the inner div
+                  with its <iframe>, so it must be the lone child of a stable wrapper
+                  that React never reorders. If overlays were siblings of this node,
+                  overlay re-renders would crash with insertBefore on a detached node. */}
+              <div className="pointer-events-none absolute inset-0">
+                <div ref={ytHostRef} className="h-full w-full" />
+              </div>
               <ClipChip />
-              <div ref={ytHostRef} className="pointer-events-none h-full w-full" />
               {/* Custom control layer: hides YouTube's native scrubber/branding and
                   locks interaction to our clip. Click toggles play/pause. */}
               <button
