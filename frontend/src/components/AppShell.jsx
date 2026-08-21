@@ -2,26 +2,28 @@ import { useEffect } from "react";
 import { NavLink, Link, useLocation, Outlet } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Home, Calendar, GraduationCap, Play, User, Shield, LayoutDashboard, Mic } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import NotificationBell from "@/components/NotificationBell";
+import LanguageToggle from "@/components/LanguageToggle";
 
 const MEMBER_ITEMS = [
-  { to: "/home", label: "Home", icon: Home, tid: "nav-home" },
-  { to: "/schedule", label: "Schedule", icon: Calendar, tid: "nav-schedule" },
-  { to: "/programs", label: "Programs", icon: GraduationCap, tid: "nav-programs" },
-  { to: "/library", label: "Library", icon: Play, tid: "nav-library" },
-  { to: "/broadcasts", label: "Podcast", icon: Mic, tid: "nav-broadcasts" },
-  { to: "/profile", label: "Profile", icon: User, tid: "nav-profile" },
+  { to: "/home", labelKey: "nav.home", icon: Home, tid: "nav-home" },
+  { to: "/schedule", labelKey: "nav.schedule", icon: Calendar, tid: "nav-schedule" },
+  { to: "/programs", labelKey: "nav.programs", icon: GraduationCap, tid: "nav-programs" },
+  { to: "/library", labelKey: "nav.library", icon: Play, tid: "nav-library" },
+  { to: "/broadcasts", labelKey: "nav.podcast", icon: Mic, tid: "nav-broadcasts" },
+  { to: "/profile", labelKey: "nav.profile", icon: User, tid: "nav-profile" },
 ];
 
 // Admins get a content-management focused nav so the app behaves like an admin
 // console, not the member app. Console = manage courses/library/classes/settings.
 const ADMIN_ITEMS = [
-  { to: "/admin", label: "Console", icon: LayoutDashboard, tid: "nav-admin" },
-  { to: "/schedule", label: "Classes", icon: Calendar, tid: "nav-schedule" },
-  { to: "/programs", label: "Programs", icon: GraduationCap, tid: "nav-programs" },
-  { to: "/library", label: "Library", icon: Play, tid: "nav-library" },
-  { to: "/profile", label: "Profile", icon: User, tid: "nav-profile" },
+  { to: "/admin", labelKey: "nav.console", icon: LayoutDashboard, tid: "nav-admin" },
+  { to: "/schedule", labelKey: "nav.classes", icon: Calendar, tid: "nav-schedule" },
+  { to: "/programs", labelKey: "nav.programs", icon: GraduationCap, tid: "nav-programs" },
+  { to: "/library", labelKey: "nav.library", icon: Play, tid: "nav-library" },
+  { to: "/profile", labelKey: "nav.profile", icon: User, tid: "nav-profile" },
 ];
 
 const COLS = { 4: "grid-cols-4", 5: "grid-cols-5", 6: "grid-cols-6" };
@@ -29,6 +31,7 @@ const COLS = { 4: "grid-cols-4", 5: "grid-cols-5", 6: "grid-cols-6" };
 export default function AppShell() {
   const loc = useLocation();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const isAdmin = user?.role === "admin";
   const isStaff = isAdmin || user?.role === "instructor";
 
@@ -52,15 +55,15 @@ export default function AppShell() {
         >
           <div className="flex items-center gap-2 text-[12px]">
             <Shield className="h-3.5 w-3.5 text-[#B25A45]" />
-            <span className="font-semibold">{isAdmin ? "Admin mode" : "Instructor mode"}</span>
-            <span className="hidden sm:inline text-white/55">· signed in as {user?.email}</span>
+            <span className="font-semibold">{isAdmin ? t("shell.admin_mode") : t("shell.instructor_mode")}</span>
+            <span className="hidden sm:inline text-white/55">· {t("shell.signed_in_as")} {user?.email}</span>
           </div>
           <Link
             to={isAdmin ? "/admin" : "/instructor"}
             data-testid="staff-mode-open-console"
             className="rounded-full bg-[#B25A45] px-3 py-1 text-[12px] font-semibold hover:bg-[#9d4d3b] transition"
           >
-            {isAdmin ? "Open console" : "Instructor studio"}
+            {isAdmin ? t("shell.open_console") : t("shell.instructor_studio")}
           </Link>
         </div>
       )}
@@ -74,9 +77,10 @@ export default function AppShell() {
           transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
           className={hideNav ? "" : "safe-bottom"}
         >
-          {user && !hideNav && (
-            <div className="fixed right-4 top-3 z-50" style={{ top: isStaff ? "3rem" : undefined }}>
-              <NotificationBell />
+          {!hideNav && (
+            <div className="fixed right-4 z-50 flex items-center gap-2" style={{ top: isStaff ? "3rem" : "0.75rem" }}>
+              <LanguageToggle />
+              {user && <NotificationBell />}
             </div>
           )}
           <Outlet />
@@ -90,7 +94,7 @@ export default function AppShell() {
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
           <ul className={`mx-auto grid max-w-2xl ${COLS[items.length] || "grid-cols-5"} px-2 py-1.5`}>
-            {items.map(({ to, label, icon: Icon, tid }) => (
+            {items.map(({ to, labelKey, icon: Icon, tid }) => (
               <li key={to}>
                 <NavLink to={to} data-testid={tid} className="block">
                   {({ isActive }) => (
@@ -108,7 +112,7 @@ export default function AppShell() {
                         strokeWidth={isActive ? 2 : 1.6}
                       />
                       <span className={`relative text-[10px] tracking-wide transition-colors ${isActive ? "font-semibold text-[#B25A45]" : "font-medium text-[#6B7269]"}`}>
-                        {label}
+                        {t(labelKey)}
                       </span>
                     </div>
                   )}

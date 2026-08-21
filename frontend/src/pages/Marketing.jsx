@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Play, Download, Menu, X, Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
 import InstagramReels from "@/components/InstagramReels";
 import FreeClassRibbon from "@/components/FreeClassRibbon";
 import Logo from "@/components/Logo";
+import LanguageToggle from "@/components/LanguageToggle";
 import InlineSignup from "@/components/InlineSignup";
 import { FeatureStrip, StatsBar, ValueProps, FAQ } from "@/components/MarketingSections";
 import HeroTestimonial from "@/components/HeroTestimonial";
@@ -19,6 +21,7 @@ function isStandalone() {
 function Nav({ onOpenApp }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { t } = useTranslation();
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 24);
     on();
@@ -26,11 +29,11 @@ function Nav({ onOpenApp }) {
     return () => window.removeEventListener("scroll", on);
   }, []);
   const items = [
-    { href: "#story", label: "Story" },
-    { href: "#programs", label: "Programs" },
-    { href: "#retreats", label: "Retreats" },
-    { href: "#faq", label: "FAQ" },
-    { href: "#join", label: "Join" },
+    { href: "#story", label: t("marketing.nav_story") },
+    { href: "#programs", label: t("marketing.nav_programs") },
+    { href: "#retreats", label: t("marketing.nav_retreats") },
+    { href: "#faq", label: t("marketing.nav_faq") },
+    { href: "#join", label: t("marketing.nav_join") },
   ];
   return (
     <header
@@ -47,9 +50,10 @@ function Nav({ onOpenApp }) {
           ))}
         </nav>
         <div className="hidden lg:flex items-center gap-3">
-          <Link to="/login" data-testid="nav-signin" className="text-sm text-[#545E56] hover:text-[#B25A45] transition">Sign in</Link>
+          <LanguageToggle />
+          <Link to="/login" data-testid="nav-signin" className="text-sm text-[#545E56] hover:text-[#B25A45] transition">{t("common.signIn")}</Link>
           <button onClick={onOpenApp} data-testid="nav-open-app" className="pill pill-primary !py-2 !px-4 !text-[13px]">
-            Open the app <ArrowRight className="h-3.5 w-3.5" />
+            {t("marketing.open_app")} <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>
         <button onClick={() => setOpen((o) => !o)} data-testid="nav-menu-toggle" className="lg:hidden h-9 w-9 rounded-full border border-[#E5E6DF] flex items-center justify-center">
@@ -63,9 +67,10 @@ function Nav({ onOpenApp }) {
               <li key={i.href}><a href={i.href} onClick={() => setOpen(false)} className="block py-2 text-[#1C221F] font-medium">{i.label}</a></li>
             ))}
             <li className="pt-2 border-t border-[#E5E6DF]">
-              <Link to="/login" data-testid="mobile-nav-signin" className="block py-2 text-[#1C221F] font-medium">Sign in</Link>
+              <Link to="/login" data-testid="mobile-nav-signin" className="block py-2 text-[#1C221F] font-medium">{t("common.signIn")}</Link>
             </li>
-            <li><button onClick={onOpenApp} data-testid="mobile-nav-open-app" className="pill pill-primary w-full mt-2">Open the app <ArrowRight className="h-4 w-4" /></button></li>
+            <li className="pt-1"><LanguageToggle /></li>
+            <li><button onClick={onOpenApp} data-testid="mobile-nav-open-app" className="pill pill-primary w-full mt-2">{t("marketing.open_app")} <ArrowRight className="h-4 w-4" /></button></li>
           </ul>
         </div>
       )}

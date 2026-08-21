@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import { api, tokenStore } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
+import LanguageToggle from "@/components/LanguageToggle";
 
 export default function Register() {
   const nav = useNavigate();
   const { refresh } = useAuth();
+  const { t } = useTranslation();
   const [params] = useSearchParams();
   const refCode = params.get("ref") || "";
   const [name, setName] = useState("");
@@ -16,8 +19,8 @@ export default function Register() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (refCode) toast(`Invited by a friend — first class free.`);
-  }, [refCode]);
+    if (refCode) toast(t("register.invited_toast"));
+  }, [refCode, t]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -33,10 +36,10 @@ export default function Register() {
       });
       tokenStore.set(data.token);
       await refresh();
-      toast.success("Welcome. Your practice begins here.");
+      toast.success(t("register.welcome"));
       nav("/home");
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Could not create account");
+      toast.error(err?.response?.data?.detail || t("register.failed"));
     } finally {
       setBusy(false);
     }
@@ -44,10 +47,11 @@ export default function Register() {
 
   return (
     <div data-testid="register-page">
-      <PageHeader eyebrow={refCode ? "Invited · first class free" : "Tony Yoga · Since 1986"} title="Begin." back testId="register-header" showLogo />
+      <div className="flex justify-end px-6 pt-4"><LanguageToggle /></div>
+      <PageHeader eyebrow={refCode ? t("register.eyebrow_invited") : t("register.eyebrow")} title={t("register.title")} back testId="register-header" showLogo />
       <form onSubmit={submit} className="mx-auto max-w-md px-6 mt-4 space-y-4">
         <label className="block">
-          <span className="eyebrow">Your name</span>
+          <span className="eyebrow">{t("register.name")}</span>
           <input
             data-testid="register-name"
             value={name}
@@ -57,7 +61,7 @@ export default function Register() {
           />
         </label>
         <label className="block">
-          <span className="eyebrow">Email</span>
+          <span className="eyebrow">{t("register.email")}</span>
           <input
             type="email"
             data-testid="register-email"
@@ -69,7 +73,7 @@ export default function Register() {
           />
         </label>
         <label className="block">
-          <span className="eyebrow">Password</span>
+          <span className="eyebrow">{t("register.password")}</span>
           <input
             type="password"
             data-testid="register-password"
@@ -88,12 +92,12 @@ export default function Register() {
           data-testid="register-submit"
           className="pill pill-primary w-full mt-2"
         >
-          {busy ? "Creating…" : "Create account"}
+          {busy ? t("register.submitting") : t("register.submit")}
         </button>
 
         <p className="text-center text-[13px] text-[#6B7269]">
-          Already have an account?{" "}
-          <Link to="/login" data-testid="register-link-login" className="underline text-[#1C221F]">Sign in</Link>
+          {t("register.have_account")}{" "}
+          <Link to="/login" data-testid="register-link-login" className="underline text-[#1C221F]">{t("register.sign_in")}</Link>
         </p>
       </form>
     </div>

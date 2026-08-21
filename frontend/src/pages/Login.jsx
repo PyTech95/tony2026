@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
+import LanguageToggle from "@/components/LanguageToggle";
 
 export default function Login() {
   const nav = useNavigate();
   const { login } = useAuth();
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -19,10 +22,10 @@ export default function Login() {
     setBusy(true);
     try {
       await login(email.trim(), password, remember);
-      toast.success("Welcome back.");
+      toast.success(t("login.welcome_back"));
       nav("/home");
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Sign in failed");
+      toast.error(err?.response?.data?.detail || t("login.failed"));
     } finally {
       setBusy(false);
     }
@@ -57,10 +60,11 @@ export default function Login() {
 
   return (
     <div data-testid="login-page">
-      <PageHeader eyebrow="Tony Yoga · Since 1986" title="Sign in." back testId="login-header" showLogo />
+      <div className="flex justify-end px-6 pt-4"><LanguageToggle /></div>
+      <PageHeader eyebrow={t("login.eyebrow")} title={t("login.title")} back testId="login-header" showLogo />
       <form onSubmit={submit} className="mx-auto max-w-md px-6 mt-4 space-y-4">
         <label className="block">
-          <span className="eyebrow">Email</span>
+          <span className="eyebrow">{t("login.email")}</span>
           <input
             type="email"
             data-testid="login-email"
@@ -72,7 +76,7 @@ export default function Login() {
           />
         </label>
         <label className="block">
-          <span className="eyebrow">Password</span>
+          <span className="eyebrow">{t("login.password")}</span>
           <input
             type="password"
             data-testid="login-password"
@@ -92,7 +96,7 @@ export default function Login() {
             onChange={(e) => setRemember(e.target.checked)}
             className="h-4 w-4 rounded border-[#C9CBBF] text-[#B25A45] focus:ring-[#B25A45]"
           />
-          <span className="text-[13px] text-[#545E56]">Keep me signed in</span>
+          <span className="text-[13px] text-[#545E56]">{t("login.remember")}</span>
         </label>
 
         <button
@@ -101,22 +105,22 @@ export default function Login() {
           data-testid="login-submit"
           className="pill pill-primary w-full mt-2"
         >
-          {busy ? "Signing in…" : "Sign in"}
+          {busy ? t("login.submitting") : t("login.submit")}
         </button>
 
         <p className="text-center text-[13px] text-[#6B7269]">
-          New here?{" "}
-          <Link to="/register" data-testid="login-link-register" className="underline text-[#1C221F]">Create an account</Link>
+          {t("login.new_here")}{" "}
+          <Link to="/register" data-testid="login-link-register" className="underline text-[#1C221F]">{t("login.create_account")}</Link>
         </p>
 
         <div className="flex items-center justify-center gap-4 text-[13px]">
-          <button type="button" onClick={forgot} data-testid="login-forgot" className="text-[#B25A45] hover:underline">Forgot password?</button>
+          <button type="button" onClick={forgot} data-testid="login-forgot" className="text-[#B25A45] hover:underline">{t("login.forgot")}</button>
           <span className="text-[#D8D9D1]">·</span>
-          <button type="button" onClick={magicLink} data-testid="login-magic-link" className="text-[#B25A45] hover:underline">Email me a magic link</button>
+          <button type="button" onClick={magicLink} data-testid="login-magic-link" className="text-[#B25A45] hover:underline">{t("login.magic")}</button>
         </div>
 
         <div className="mt-8 rounded-2xl bg-[#F2F2EC] p-4 text-[12px] leading-relaxed text-[#545E56]">
-          <div className="eyebrow mb-2 !text-[#B25A45]">Demo access</div>
+          <div className="eyebrow mb-2 !text-[#B25A45]">{t("login.demo_access")}</div>
           <div className="flex flex-wrap gap-2">
             <button type="button" data-testid="login-demo-student" onClick={() => fillDemo("student")} className="pill pill-ghost !py-1.5 !px-3 !text-xs">student@demo.com</button>
             <button type="button" data-testid="login-demo-admin" onClick={() => fillDemo("admin")} className="pill pill-ghost !py-1.5 !px-3 !text-xs">tony@tonyyoga.com</button>

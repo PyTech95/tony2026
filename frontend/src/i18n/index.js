@@ -4,9 +4,7 @@ import LanguageDetector from "i18next-browser-languagedetector";
 import en from "./locales/en.json";
 import es from "./locales/es.json";
 
-// English-only first pass. The framework + es scaffold are wired so Spanish is a
-// drop-in later (add strings to es.json, expose a language toggle, and lift the
-// `lng: "en"` lock below to enable detection between en/es).
+// EN⇄ES enabled. Default English; user choice persists to localStorage ('ty_lang').
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
@@ -15,7 +13,6 @@ i18n
       en: { translation: en },
       es: { translation: es },
     },
-    lng: "en",
     fallbackLng: "en",
     supportedLngs: ["en", "es"],
     // Keys are flat literal strings (e.g. "i18n:memb.plan.essential.name", "nav.home"),
@@ -25,7 +22,7 @@ i18n
     returnEmptyString: false,
     interpolation: { escapeValue: false },
     detection: {
-      order: ["localStorage", "navigator"],
+      order: ["localStorage"],
       caches: ["localStorage"],
       lookupLocalStorage: "ty_lang",
     },
