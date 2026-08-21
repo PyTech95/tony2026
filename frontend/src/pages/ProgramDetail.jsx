@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Lock, Play, CheckCircle2, RotateCcw, Clock, Award, ShieldCheck, Sparkles, ClipboardCheck } from "lucide-react";
+import { Lock, Play, CheckCircle2, RotateCcw, Clock, Award, ShieldCheck, Sparkles, ClipboardCheck, ShoppingBag, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { cart } from "@/lib/cart";
 import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
 import HeartButton from "@/components/HeartButton";
@@ -153,8 +154,70 @@ export default function ProgramDetail() {
           </ul>
         </div>
 
+        <BundleUpsell p={p} />
         <RelatedProducts products={p.related_products} />
       </div>
+    </div>
+  );
+}
+
+function BundleUpsell({ p }) {
+  const navigate = useNavigate();
+  const products = (p.related_products || []).filter((x) => x && (x.type ? x.type === "physical" : true));
+  if (products.length < 2) return null;
+  const pct = p.bundle_discount_pct || 15;
+  const cur = (products[0]?.currency || "eur").toLowerCase() === "usd" ? "$" : "€";
+  const full = products.reduce((n, x) => n + (Number(x.price) || 0), 0);
+  const savings = Math.round((full * pct) / 100 * 100) / 100;
+  const bundlePrice = Math.round((full - savings) * 100) / 100;
+  const money = (n) => (Number.isInteger(n) ? `${n}` : n.toFixed(2));
+
+  const addBundle = () => {
+    products.forEach((x) => cart.add(x, null, 1));
+    cart.setPromo({
+      program_id: p.id,
+      label: `${p.title} bundle`,
+      pct,
+      product_ids: products.map((x) => x.id),
+    });
+    toast.success(`Bundle added — you save ${cur}${money(savings)}`);
+    navigate("/cart");
+  };
+
+  return (
+    <div data-testid="bundle-upsell" className="rounded-3xl bg-[#F7F2EC] border border-[#E7D9CB] p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="h-8 w-8 rounded-full bg-[#B25A45] flex items-center justify-center shrink-0">
+          <Tag className="h-4 w-4 text-white" />
+        </div>
+        <div>
+          <div className="eyebrow text-[#B25A45]">Complete your practice</div>
+          <div className="serif text-xl leading-tight">Add the mat + book &amp; save {pct}%</div>
+        </div>
+      </div>
+
+      <ul className="flex items-center gap-2" data-testid="bundle-items">
+        {products.map((x, i) => (
+          <li key={x.id} className="flex items-center gap-2">
+            <div className="h-16 w-16 rounded-xl overflow-hidden bg-white border border-[#E5E6DF] shrink-0">
+              {x.images?.[0] && <img src={x.images[0]} alt={x.title} className="h-full w-full object-cover" />}
+            </div>
+            {i < products.length - 1 && <span className="text-[#B25A45] text-lg font-semibold">+</span>}
+          </li>
+        ))}
+      </ul>
+
+      <div className="flex items-end justify-between">
+        <div>
+          <div className="text-xs text-[#6B7269] line-through">{cur}{money(full)}</div>
+          <div className="serif text-3xl text-[#1C221F]" data-testid="bundle-price">{cur}{money(bundlePrice)}</div>
+        </div>
+        <div className="text-xs font-bold uppercase tracking-widest text-[#839682]">Save {cur}{money(savings)}</div>
+      </div>
+
+      <button onClick={addBundle} data-testid="bundle-add" className="pill pill-primary w-full">
+        <ShoppingBag className="h-4 w-4" /> Add bundle to cart
+      </button>
     </div>
   );
 }

@@ -465,8 +465,70 @@ async def seed():
                 "target_id": prog["id"], "percentage": 50.0, "created_at": now_utc().isoformat(),
             })
 
+    # Seed the Asana Index — searchable pose library (idempotent — only if empty)
+    if await db.asanas.count_documents({}) == 0:
+        anow = now_utc().isoformat()
+        poses = [
+            {"name": "Half Moon Pose", "sanskrit": "Ardha Chandrasana", "category": "Standing", "difficulty": "beginner",
+             "benefits": ["Opens the chest and shoulders", "Strengthens the spine", "Improves lateral flexibility"],
+             "description": "A deep standing side-bend that lengthens the whole spine and opens the ribcage.",
+             "cover_image": "https://images.pexels.com/photos/14051370/pexels-photo-14051370.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"},
+            {"name": "Awkward Pose", "sanskrit": "Utkatasana", "category": "Standing", "difficulty": "beginner",
+             "benefits": ["Strengthens thighs and calves", "Builds heat and stamina", "Tones the core"],
+             "description": "Three-part chair-like pose that builds strength and balance in the legs.",
+             "cover_image": "https://images.unsplash.com/photo-1593164842264-854604db2260?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+            {"name": "Eagle Pose", "sanskrit": "Garurasana", "category": "Balancing", "difficulty": "intermediate",
+             "benefits": ["Improves balance and focus", "Opens the major joints", "Boosts circulation"],
+             "description": "A wrapped standing balance that compresses then flushes the joints.",
+             "cover_image": "https://images.unsplash.com/photo-1767611114501-ee5c2ea37ee7?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+            {"name": "Triangle Pose", "sanskrit": "Trikonasana", "category": "Standing", "difficulty": "beginner",
+             "benefits": ["Stretches hamstrings and hips", "Strengthens the legs", "Relieves back tension"],
+             "description": "The master pose of the standing series — combines strength, stretch and balance.",
+             "cover_image": "https://images.unsplash.com/photo-1606663368493-131f4f97c095?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+            {"name": "Tree Pose", "sanskrit": "Vrksasana", "category": "Balancing", "difficulty": "beginner",
+             "benefits": ["Improves standing balance", "Strengthens ankles and legs", "Calms the mind"],
+             "description": "A grounding one-legged balance that builds steadiness and concentration.",
+             "cover_image": "https://images.pexels.com/photos/8173547/pexels-photo-8173547.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"},
+            {"name": "Cobra Pose", "sanskrit": "Bhujangasana", "category": "Backbend", "difficulty": "beginner",
+             "benefits": ["Strengthens the spine", "Opens the chest", "Eases lower-back stiffness"],
+             "description": "A gentle prone backbend that strengthens the back body and opens the heart.",
+             "cover_image": "https://images.unsplash.com/photo-1717821552922-61e18814a44a?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+            {"name": "Bow Pose", "sanskrit": "Dhanurasana", "category": "Backbend", "difficulty": "intermediate",
+             "benefits": ["Opens the whole front body", "Strengthens the back", "Stimulates digestion"],
+             "description": "A full backbend that stretches the entire front of the body like a drawn bow.",
+             "cover_image": "https://images.pexels.com/photos/3822366/pexels-photo-3822366.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"},
+            {"name": "Camel Pose", "sanskrit": "Ustrasana", "category": "Backbend", "difficulty": "intermediate",
+             "benefits": ["Deeply opens the chest and hip flexors", "Improves posture", "Energising"],
+             "description": "A kneeling backbend and the deepest heart-opener of the Core sequence.",
+             "cover_image": "https://images.unsplash.com/photo-1723406230636-aa8c4ac1e6c5?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+            {"name": "Rabbit Pose", "sanskrit": "Sasangasana", "category": "Forward Fold", "difficulty": "intermediate",
+             "benefits": ["Stretches the spine and back", "Calms the nervous system", "Counter-poses backbends"],
+             "description": "A rounded forward fold that decompresses the spine after backbending.",
+             "cover_image": "https://images.unsplash.com/photo-1767611128194-1b6e3fbd5861?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+            {"name": "Seated Spine Twist", "sanskrit": "Ardha Matsyendrasana", "category": "Twist", "difficulty": "beginner",
+             "benefits": ["Improves spinal mobility", "Aids digestion", "Releases the lower back"],
+             "description": "A seated twist that wrings out the spine from top to bottom.",
+             "cover_image": "https://images.unsplash.com/photo-1730672786064-c0836eeb41c2?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+            {"name": "Headstand", "sanskrit": "Sirsasana", "category": "Inversion", "difficulty": "advanced",
+             "benefits": ["Builds core and shoulder strength", "Improves focus", "Boosts circulation"],
+             "description": "The king of asanas — a full inversion that demands strength and steadiness.",
+             "cover_image": "https://images.unsplash.com/photo-1560233075-4c1e2007908e?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+            {"name": "Corpse Pose", "sanskrit": "Savasana", "category": "Restorative", "difficulty": "beginner",
+             "benefits": ["Deep relaxation", "Integrates the practice", "Lowers stress"],
+             "description": "Total stillness — the most important and most challenging pose of all.",
+             "cover_image": "https://images.unsplash.com/photo-1767611104976-86ce57776dc3?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+        ]
+        docs = []
+        for i, p in enumerate(poses):
+            docs.append({
+                "id": gen_id(), **p,
+                "youtube_url": "", "youtube_id": None,
+                "start_seconds": 0, "end_seconds": None, "program_id": None,
+                "order_index": i, "is_published": True, "created_at": anow,
+            })
+        await db.asanas.insert_many(docs)
+
     try:
-        await db.users.create_index("email", unique=True)
         await db.class_instances.create_index("start_time")
         await db.bookings.create_index([("user_id", 1), ("class_instance_id", 1)])
         await db.magic_link_tokens.create_index("email")

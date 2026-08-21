@@ -91,6 +91,7 @@ class ProgramCreate(BaseModel):
     benefits: Optional[List[str]] = None
     included_in_plans: Optional[List[str]] = None
     related_product_ids: Optional[List[str]] = None
+    bundle_discount_pct: Optional[int] = None
     drip_enabled: bool = False
     drip_interval_days: int = 7
 
@@ -108,6 +109,7 @@ class ProgramUpdate(BaseModel):
     benefits: Optional[List[str]] = None
     included_in_plans: Optional[List[str]] = None
     related_product_ids: Optional[List[str]] = None
+    bundle_discount_pct: Optional[int] = None
     drip_enabled: Optional[bool] = None
     drip_interval_days: Optional[int] = None
 
@@ -237,6 +239,36 @@ class ProductCreate(BaseModel):
     images: List[str] = []
     variants: Optional[List[Dict[str, Any]]] = None
     external_amazon_link: Optional[str] = None
+
+class AsanaCreate(BaseModel):
+    name: str                       # English / common name
+    sanskrit: Optional[str] = None
+    benefits: Optional[List[str]] = None
+    description: Optional[str] = None
+    category: Optional[str] = None  # e.g. Standing, Seated, Backbend, Inversion
+    difficulty: Optional[str] = None  # beginner | intermediate | advanced
+    cover_image: Optional[str] = None
+    youtube_url: Optional[str] = None
+    start_seconds: Optional[int] = None
+    end_seconds: Optional[int] = None
+    program_id: Optional[str] = None
+    order_index: Optional[int] = None
+    is_published: bool = True
+
+class AsanaUpdate(BaseModel):
+    name: Optional[str] = None
+    sanskrit: Optional[str] = None
+    benefits: Optional[List[str]] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    difficulty: Optional[str] = None
+    cover_image: Optional[str] = None
+    youtube_url: Optional[str] = None
+    start_seconds: Optional[int] = None
+    end_seconds: Optional[int] = None
+    program_id: Optional[str] = None
+    order_index: Optional[int] = None
+    is_published: Optional[bool] = None
 
 class MembershipPlanCreate(BaseModel):
     name: str

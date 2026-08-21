@@ -10,7 +10,7 @@ import EmptyState from "@/components/EmptyState";
 import PaymentButtons from "@/components/PaymentButtons";
 
 export default function Cart() {
-  const { items, subtotal, updateQty, remove } = useCart();
+  const { items, subtotal, promo, discount, total, updateQty, remove } = useCart();
   const { user } = useAuth();
   const nav = useNavigate();
   const [step, setStep] = useState("cart");
@@ -45,6 +45,7 @@ export default function Cart() {
         const { data: order } = await api.post("/orders/create", {
           items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity, variant: i.variant })),
           shipping_address: addr,
+          bundle_program_id: discount > 0 ? promo?.program_id : null,
         });
         currentOrderId = order.id;
         setOrderId(currentOrderId);
@@ -92,9 +93,24 @@ export default function Cart() {
               ))}
             </ul>
 
-            <div className="rounded-2xl bg-[#F2F2EC] p-5 flex items-center justify-between">
-              <div className="eyebrow">Subtotal</div>
-              <div className="serif text-2xl" data-testid="cart-subtotal">${subtotal.toFixed(2)}</div>
+            <div className="rounded-2xl bg-[#F2F2EC] p-5 space-y-2">
+              {discount > 0 && (
+                <>
+                  <div className="flex items-center justify-between text-sm text-[#6B7269]">
+                    <span>Subtotal</span>
+                    <span data-testid="cart-subtotal-raw">${subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-[#839682] font-semibold" data-testid="cart-discount-row">
+                    <span>{promo?.pct}% bundle discount</span>
+                    <span>−${discount.toFixed(2)}</span>
+                  </div>
+                  <div className="h-px bg-[#E0E1D8]" />
+                </>
+              )}
+              <div className="flex items-center justify-between">
+                <div className="eyebrow">Total</div>
+                <div className="serif text-2xl" data-testid="cart-subtotal">${total.toFixed(2)}</div>
+              </div>
             </div>
 
             <button onClick={() => setStep("shipping")} data-testid="cart-continue" className="pill pill-primary w-full">
@@ -106,7 +122,8 @@ export default function Cart() {
         {step === "shipping" && (
           <div className="space-y-3" data-testid="cart-shipping-form">
             <div className="rounded-2xl bg-[#F2F2EC] p-4 text-xs text-[#6B7269]">
-              Ships within 3-5 business days. Total: <span className="font-semibold text-[#1C221F]">${subtotal.toFixed(2)}</span>
+              Ships within 3-5 business days. Total: <span className="font-semibold text-[#1C221F]">${total.toFixed(2)}</span>
+              {discount > 0 && <span className="text-[#839682] font-semibold"> · {promo?.pct}% bundle saving applied</span>}
             </div>
             <input required data-testid="ship-name" value={addr.name} onChange={(e) => setAddr({ ...addr, name: e.target.value })} placeholder="Full name" className="w-full rounded-2xl border border-[#E5E6DF] px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#B25A45]" />
             <input required data-testid="ship-line1" value={addr.line1} onChange={(e) => setAddr({ ...addr, line1: e.target.value })} placeholder="Street address" className="w-full rounded-2xl border border-[#E5E6DF] px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#B25A45]" />
@@ -122,7 +139,7 @@ export default function Cart() {
             <PaymentButtons
               itemType="cart"
               itemId={orderId || "pending"}
-              stripeLabel={`Pay $${subtotal.toFixed(2)}`}
+              stripeLabel={`Pay $${total.toFixed(2)}`}
               onBeforeCheckout={beforeCheckout}
               testIdPrefix="cart-pay"
               size="lg"

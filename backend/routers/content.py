@@ -244,6 +244,7 @@ async def get_program(program_id: str, user: Optional[dict] = Depends(get_option
         program["related_products"] = [by_id[pid] for pid in rpids if pid in by_id]
     else:
         program["related_products"] = []
+    program["bundle_discount_pct"] = int(program.get("bundle_discount_pct") or 15)
     return program
 
 

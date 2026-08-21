@@ -21,6 +21,7 @@ class OrderCreate(BaseModel):
     items: List[Dict[str, Any]]  # [{product_id, quantity, variant?}]
     shipping_address: ShippingAddress
     notes: Optional[str] = None
+    bundle_program_id: Optional[str] = None  # apply a course's "buy-together" discount
 
 
 class OrderStatusUpdate(BaseModel):
@@ -55,6 +56,29 @@ async def create_order(payload: OrderCreate, user: dict = Depends(get_current_us
             "quantity": qty, "unit_price": product["price"],
             "variant": it.get("variant"), "line_total": line_total,
         })
+    # Bundle "buy-together" discount: if a course id is passed, discount the lines
+    # that belong to that course's related products (server recomputes to prevent tampering).
+    discount = 0.0
+    bundle_meta = None
+    if payload.bundle_program_id:
+        program = await db.programs.find_one({"id": payload.bundle_program_id}, {"_id": 0})
+        if program:
+            pct = int(program.get("bundle_discount_pct") or 15)
+            related_ids = set(program.get("related_product_ids") or [])
+            eligible_sum = sum(
+                li["line_total"] for li in enriched_items if li["product_id"] in related_ids
+            )
+            # Only honour the discount when the customer actually has the whole set.
+            has_all = related_ids and related_ids.issubset({li["product_id"] for li in enriched_items})
+            if has_all and pct > 0 and eligible_sum > 0:
+                discount = round(eligible_sum * pct / 100.0, 2)
+                bundle_meta = {
+                    "program_id": payload.bundle_program_id,
+                    "program_title": program.get("title", ""),
+                    "discount_pct": pct,
+                    "discount_amount": discount,
+                }
+    grand_total = round(max(0.0, total - discount), 2)
     order = {
         "id": gen_id(),
         "user_id": user["id"],
@@ -62,7 +86,10 @@ async def create_order(payload: OrderCreate, user: dict = Depends(get_current_us
         "items": enriched_items,
         "shipping_address": payload.shipping_address.model_dump(),
         "notes": payload.notes,
-        "total": round(total, 2),
+        "subtotal": round(total, 2),
+        "discount": discount,
+        "bundle": bundle_meta,
+        "total": grand_total,
         "currency": currency,
         "status": "pending",
         "tracking_number": None,

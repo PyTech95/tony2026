@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
-import { LayoutDashboard, Youtube, Package, GraduationCap, Calendar, ClipboardCheck, Mic, MountainSnow, Gift, Settings as SettingsIcon, Upload, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Youtube, Package, GraduationCap, Calendar, ClipboardCheck, Mic, MountainSnow, Gift, Settings as SettingsIcon, Upload, ChevronRight, Flower2 } from "lucide-react";
 import StatsPane from "./admin/StatsPane";
 import CoursesPane from "./admin/CoursesPane";
 import BundlesPane from "./admin/BundlesPane";
@@ -13,10 +13,12 @@ import RetreatsPane from "./admin/RetreatsPane";
 import GiftCardsPane from "./admin/GiftCardsPane";
 import SettingsPane from "./admin/SettingsPane";
 import ImportPane from "./admin/ImportPane";
+import AsanasPane from "./admin/AsanasPane";
 
 const ADMIN_NAV = [
   { key: "stats", label: "Overview", icon: LayoutDashboard },
   { key: "courses", label: "Courses & Videos", icon: Youtube },
+  { key: "asanas", label: "Asana Index", icon: Flower2 },
   { key: "bundles", label: "Bundles", icon: Package },
   { key: "students", label: "Students", icon: GraduationCap },
   { key: "classes", label: "Classes", icon: Calendar },
@@ -49,7 +51,7 @@ function AdminNavItem({ active, onClick, tid, icon: Icon, children }) {
 export default function Admin() {
   const { user, ready } = useAuth();
   const [params, setParams] = useSearchParams();
-  const validTabs = ["stats", "courses", "bundles", "students", "classes", "apps", "broadcast", "retreats", "giftcards", "settings", "import"];
+  const validTabs = ["stats", "courses", "asanas", "bundles", "students", "classes", "apps", "broadcast", "retreats", "giftcards", "settings", "import"];
   const initialTab = validTabs.includes(params.get("tab")) ? params.get("tab") : "stats";
   const [tab, setTab] = useState(initialTab);
   const selectTab = (t) => { setTab(t); setParams(t === "stats" ? {} : { tab: t }, { replace: true }); };
@@ -96,6 +98,7 @@ export default function Admin() {
         <main className="flex-1 min-w-0 pt-5 md:pt-0">
           {tab === "stats" && <StatsPane />}
           {tab === "courses" && <CoursesPane />}
+          {tab === "asanas" && <AsanasPane />}
           {tab === "bundles" && <BundlesPane />}
           {tab === "students" && <StudentsPane />}
           {tab === "classes" && <ClassesPane />}

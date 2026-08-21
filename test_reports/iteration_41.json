@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 41 — full backend + frontend verification of (1) Asana Index (public page, search, category chips, detail modal, admin CRUD + image upload) and (2) Bundle Upsell (program card, cart discount row, checkout total, server-side discount security). 18/18 pytest backend tests passed. All frontend flows passed: /asanas grid (12 seeded poses, images load), search 'camel' -> 1 result, empty state, clear, asana-cat-Backbend -> 3 Backbend cards, detail modal with 3 benefits + close, /library -> library-asana-link navigates to /asanas. Admin: sidebar admin-tab-asanas opens asanas-pane, cover UPLOAD -> preview renders, CREATE (13 rows) -> pose immediately visible on public /asanas, EDIT loads form + renames, DELETE removes it (back to 12). Bundle: card shows 2 thumbs, $117 struck / $99 / Save $18, bundle-add adds mat+journal and navigates to /cart with cart-discount-row '15% bundle discount −$17.55' and total $99.45; shipping form accepted and pay button label 'Pay $99.45' (no payment executed). Security re-verified: full set -> discount 17.55/total 99.45; mat only, journal only, and bogus bundle_program_id -> discount 0. Auth playbook spot-checks: bcrypt hash $2b$ (60 chars), httpOnly+Secure+SameSite=None access_token cookie on login, brute-force lockout confirmed (5x401 then 429 on 6th using throwaway email). DB left clean: 12 asanas, 0 TEST_ poses, 4 pending test orders purged, cart emptied. No accounts registered, no payments completed.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ProgramDetail bundle card", "issues": ["Displayed 'Save $18' / '$99' (Math.round of 17.55) does not match the real charge of $17.55 / $99.45 shown in cart & pay button. Confirmed expected per request, but consider showing $17.55/$99.45 (or 'from $99') to avoid a perceived price mismatch at checkout."]},
+      {"screen": "Public /asanas on desktop (1920px)", "issues": ["Content capped at max-w-4xl so the 3-column grid leaves large empty side gutters; mobile/tablet look correct. Cosmetic only."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration41.py", "/app/backend/tests/cleanup_iteration41.py", "/app/test_reports/pytest/iter41.xml"],
+  "action_items": [
+    "OPTIONAL (cosmetic): align BundleUpsell displayed savings/price with the exact server figures ($17.55 / $99.45) or label as approximate.",
+    "OPTIONAL (minor): /api/admin/uploads hard-codes the storage path as '{APP_NAME}/retreats/...' (uploads.py:75), so asana cover photos are stored under a 'retreats' folder. Works, but the path is misleading — parameterize the folder."
+  ],
+  "critical_code_review_comments": [
+    "orders.py bundle logic is correctly server-recomputed and requires related_ids.issubset(cart items) — tampering (partial set / fake program id) yields discount 0. Verified.",
+    "asanas.py: public list applies q-filtering in Python after fetching up to 1000 docs; fine at current scale but should move to a Mongo text/regex query if the library grows.",
+    "AsanasPane delete uses window.confirm (native dialog) — acceptable but inconsistent with the app's modal/toast style used elsewhere.",
+    "server.py CORS: allow_origins defaults to '*' with allow_credentials=False. App auth uses Bearer tokens so this works, but the login endpoint also sets an httpOnly cookie that can never be sent cross-origin — either drop the cookie or set explicit CORS_ORIGINS with allow_credentials=True."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration41.py", "/app/backend/tests/cleanup_iteration41.py"],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "100% (all asana + bundle flows)"},
+  "seed_data_creation": "Temporary: 1 TEST_ asana (created then deleted), 4 pending orders (deleted from Mongo), 1 uploaded 78-byte test PNG left in uploads storage. 12 seeded poses intact.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "Used /app/memory/test_credentials.md — admin tony@tonyyoga.com, student student@demo.com (valid)",
+  "context_for_next_testing_agent": "Backend regression file for this iteration: /app/backend/tests/test_iteration41.py (asana public/admin CRUD + bundle discount security). Run /app/backend/tests/cleanup_iteration41.py afterwards to purge test orders and verify asana count == 12. Note: AsanasPane delete triggers window.confirm — register page.on('dialog', accept) in Playwright. Asana card images are lazy-loaded; wait ~3s before asserting naturalWidth. Do NOT register users or complete payments (live SMTP/Stripe).",
+  "rca_of_the_issue": "No defects found; only cosmetic rounding/display and upload-path naming observations."
+}

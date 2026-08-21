@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Play, Lock, Pencil } from "lucide-react";
+import { Play, Lock, Pencil, Flower2, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import PageHeader from "@/components/PageHeader";
@@ -36,6 +36,21 @@ export default function Library() {
       />
 
       <div className="mx-auto max-w-2xl px-5">
+        <Link
+          to="/asanas"
+          data-testid="library-asana-link"
+          className="flex items-center gap-3 rounded-2xl bg-[#1C221F] text-[#FAFAF7] p-4 mb-5 hover:bg-[#0F1211] transition"
+        >
+          <div className="h-10 w-10 rounded-full bg-[#B25A45] flex items-center justify-center shrink-0">
+            <Flower2 className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="serif text-lg leading-tight">Asana Index</div>
+            <div className="text-xs text-white/70">Search every pose — name, Sanskrit &amp; benefits</div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-white/60 shrink-0" />
+        </Link>
+
         <div className="flex gap-2 mb-5" data-testid="library-filters">
           {FILTERS.map((f) => (
             <button
