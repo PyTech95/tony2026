@@ -48,9 +48,10 @@ async def reserve_retreat(payload: RetreatReserve, user: dict = Depends(get_curr
         return existing
 
     price = float(workshop.get("price_eur", 1600.0))
+    deposit = float(workshop.get("deposit_eur") or DEPOSIT_EUR)
     tt_upgrade = float(workshop.get("teacher_training_price_eur") or 0) if payload.wants_teacher_training else 0
     total = price + tt_upgrade
-    balance = max(0.0, total - DEPOSIT_EUR)
+    balance = max(0.0, total - deposit)
 
     doc = {
         "id": gen_id(),
@@ -66,7 +67,7 @@ async def reserve_retreat(payload: RetreatReserve, user: dict = Depends(get_curr
         "wants_teacher_training": payload.wants_teacher_training,
         "notes": payload.notes,
         "total_eur": round(total, 2),
-        "deposit_eur": DEPOSIT_EUR,
+        "deposit_eur": deposit,
         "balance_eur": round(balance, 2),
         "balance_due_date": _balance_due_date(workshop),
         "status": "pending_deposit",
@@ -118,8 +119,6 @@ async def send_balance_reminders_tick():
         },
         {"_id": 0},
     ).to_list(200)
-    if not pending:
-        return 0
     total_sent = 0
     for r in pending:
         try:
@@ -151,6 +150,37 @@ async def send_balance_reminders_tick():
             {"id": r["id"]},
             {"$set": {"balance_reminder_sent_at": now.isoformat()}},
         )
+
+    # Due-now reminder: email the moment the balance becomes due (30 days before the
+    # retreat), idempotent via `balance_due_now_sent_at`.
+    due_now = await db.workshop_registrations.find(
+        {
+            "status": "deposit_paid",
+            "balance_due_date": {"$lte": now.isoformat()},
+            "balance_due_now_sent_at": {"$exists": False},
+        },
+        {"_id": 0},
+    ).to_list(200)
+    for r in due_now:
+        try:
+            from email_service import send_email
+            due = str(r.get("balance_due_date", ""))[:10]
+            html = (
+                f"<h3>Balance now due · {r.get('workshop_title')}</h3>"
+                f"<p>Your remaining balance of <strong>€{int(r.get('balance_eur', 0))}</strong> is now due "
+                f"(as of <strong>{due}</strong>). Please complete payment in-app under Profile · Your retreats "
+                f"to keep your seat.</p>"
+                f"<p>With gratitude,<br/>— Tony</p>"
+            )
+            if r.get("email"):
+                await send_email(r["email"], f"Balance now due · {r.get('workshop_title')}", html)
+        except Exception as e:
+            _logger.warning(f"balance due-now reminder failed for {r.get('id')}: {e}")
+        await db.workshop_registrations.update_one(
+            {"id": r["id"]},
+            {"$set": {"balance_due_now_sent_at": now.isoformat()}},
+        )
+
     if pending:
         _logger.info(f"balance reminders: notified {len(pending)} reservation(s)")
-    return len(pending)
+    return len(pending) + len(due_now)

@@ -23,7 +23,26 @@ class WorkshopCreate(BaseModel):
     cover_image: Optional[str] = None
     schedule: Optional[str] = "9:00–1:00 pm / 3:00–6:00 pm"
     capacity: int = 14
+    deposit_eur: float = 500.0
     is_active: bool = True
+
+
+class WorkshopUpdate(BaseModel):
+    title: Optional[str] = None
+    subtitle: Optional[str] = None
+    system: Optional[str] = None
+    description: Optional[str] = None
+    location: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    nights: Optional[int] = None
+    price_eur: Optional[float] = None
+    teacher_training_price_eur: Optional[float] = None
+    cover_image: Optional[str] = None
+    schedule: Optional[str] = None
+    capacity: Optional[int] = None
+    deposit_eur: Optional[float] = None
+    is_active: Optional[bool] = None
 
 
 class WorkshopRegistration(BaseModel):
@@ -100,6 +119,12 @@ async def register_for_workshop(payload: WorkshopRegistration, user: dict = Depe
 
 
 # ---------- Admin ----------
+@api.get("/admin/workshops")
+async def admin_list_workshops(request: Request):
+    await require_role(request, ["admin", "support"])
+    return await db.workshops.find({}, {"_id": 0}).sort("start_date", 1).to_list(200)
+
+
 @api.post("/admin/workshops")
 async def create_workshop(payload: WorkshopCreate, request: Request):
     await require_role(request, ["admin"])
@@ -113,6 +138,31 @@ async def create_workshop(payload: WorkshopCreate, request: Request):
     await db.workshops.insert_one(doc)
     doc.pop("_id", None)
     return doc
+
+
+@api.patch("/admin/workshops/{workshop_id}")
+async def update_workshop(workshop_id: str, payload: WorkshopUpdate, request: Request):
+    await require_role(request, ["admin"])
+    updates = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None}
+    if "start_date" in updates:
+        updates["start_date"] = updates["start_date"].isoformat()
+    if "end_date" in updates:
+        updates["end_date"] = updates["end_date"].isoformat()
+    if not updates:
+        raise HTTPException(400, "Nothing to update")
+    r = await db.workshops.update_one({"id": workshop_id}, {"$set": updates})
+    if r.matched_count == 0:
+        raise HTTPException(404, "Retreat not found")
+    return await db.workshops.find_one({"id": workshop_id}, {"_id": 0})
+
+
+@api.delete("/admin/workshops/{workshop_id}")
+async def delete_workshop(workshop_id: str, request: Request):
+    await require_role(request, ["admin"])
+    r = await db.workshops.delete_one({"id": workshop_id})
+    if r.deleted_count == 0:
+        raise HTTPException(404, "Retreat not found")
+    return {"ok": True}
 
 
 @api.get("/admin/workshops/registrations")

@@ -179,3 +179,11 @@ Still-open (spec 'future'/optional, not built): leaderboard admin toggle UI, gif
 - Live DB: deactivated Core 26+ (Apr), Yoga Holiday (May), Core 84 (Jul); kept Tree of Yoga · Core 40 (Dec 1-7).
 - seed.py: now seeds only the Core 40 December retreat.
 - GET /api/workshops now filters is_active AND end_date>=now (upcoming only). Verified: /workshops returns 1 (Core 40 Dec); marketing Retreats section shows just that card.
+
+## Iteration 33 (2026-06) — Retreat admin + deposit reminders + login lockout
+- Add Retreat (admin): new Admin "Retreats" tab (RetreatsPane) + backend GET/POST/PATCH/DELETE /api/admin/workshops. WorkshopCreate/Update now carry deposit_eur. Create publishes; toggle Active/Hidden; delete. Public /api/workshops still upcoming+active only.
+- Per-retreat deposit: reserve_retreat uses workshop.deposit_eur; Marketing + WorkshopDetail (hero, balance, button, Stripe label) all read w.deposit_eur ?? 500 (fixed hardcoded €500 spots flagged by tester).
+- Deposit reminders: send_balance_reminders_tick (bg loop) now sends 7-days-before-due AND a due-now email (balance_due_now_sent_at), idempotent. Balance due = start − 30 days.
+- Secure login: brute-force lockout in auth.py (login_attempts, 5 fails/IP+email → 15-min 429; success clears). Uses X-Forwarded-For IP (ingress rotates request.client.host).
+- VERIFIED: testing agent iter33 backend 11/11 + 5/5 direct-invocation PASS. Fixed the 2 hardcoded-deposit copy bugs after. Admin Retreats UI confirmed via screenshot.
+- Store build (#4): NOT doable server-side — requires macOS/Xcode + Android Studio + developer accounts; documented in /app/MOBILE_BUILD.md.

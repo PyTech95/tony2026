@@ -1654,6 +1654,93 @@ function StudentsPane() {
 }
 
 
+function RetreatsPane() {
+  const empty = { title: "", system: "Core 40", description: "", location: "Villa San Pedro · Málaga, Spain",
+    start_date: "", end_date: "", price_eur: 1600, deposit_eur: 500, capacity: 14, cover_image: "" };
+  const [rows, setRows] = useState(null);
+  const [form, setForm] = useState(empty);
+  const [busy, setBusy] = useState(false);
+  const ic = "w-full rounded-xl border border-[#E5E6DF] bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#B25A45]";
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const load = () => api.get("/admin/workshops").then(({ data }) => setRows(data)).catch(() => setRows([]));
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    if (!form.title.trim() || !form.start_date || !form.end_date) return toast.error("Title and both dates are required.");
+    setBusy(true);
+    try {
+      await api.post("/admin/workshops", {
+        ...form,
+        price_eur: Number(form.price_eur) || 0,
+        deposit_eur: Number(form.deposit_eur) || 0,
+        capacity: Number(form.capacity) || 14,
+        start_date: new Date(form.start_date).toISOString(),
+        end_date: new Date(form.end_date).toISOString(),
+      });
+      toast.success("Retreat published");
+      setForm(empty); load();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Could not publish"); }
+    finally { setBusy(false); }
+  };
+
+  const toggleActive = async (w) => {
+    try { await api.patch(`/admin/workshops/${w.id}`, { is_active: !w.is_active }); load(); }
+    catch { toast.error("Failed"); }
+  };
+  const remove = async (w) => {
+    if (!window.confirm(`Delete "${w.title}"? This cannot be undone.`)) return;
+    try { await api.delete(`/admin/workshops/${w.id}`); load(); }
+    catch { toast.error("Failed"); }
+  };
+
+  return (
+    <div className="space-y-4" data-testid="retreats-pane">
+      <div className="rounded-2xl bg-white border border-[#E5E6DF] p-4 space-y-3">
+        <div className="eyebrow">Publish a retreat</div>
+        <input data-testid="retreat-title" className={ic} value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Title — e.g. Tree of Yoga · Core 40" />
+        <div className="grid grid-cols-2 gap-3">
+          <input data-testid="retreat-system" className={ic} value={form.system} onChange={(e) => set("system", e.target.value)} placeholder="System (Core 40)" />
+          <input data-testid="retreat-location" className={ic} value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="Location" />
+        </div>
+        <textarea data-testid="retreat-description" rows={2} className={ic} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Description" />
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-xs text-[#6B7269]">Start date<input data-testid="retreat-start" type="date" className={ic} value={form.start_date} onChange={(e) => set("start_date", e.target.value)} /></label>
+          <label className="text-xs text-[#6B7269]">End date<input data-testid="retreat-end" type="date" className={ic} value={form.end_date} onChange={(e) => set("end_date", e.target.value)} /></label>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <label className="text-xs text-[#6B7269]">Price €<input data-testid="retreat-price" type="number" className={ic} value={form.price_eur} onChange={(e) => set("price_eur", e.target.value)} /></label>
+          <label className="text-xs text-[#6B7269]">Deposit €<input data-testid="retreat-deposit" type="number" className={ic} value={form.deposit_eur} onChange={(e) => set("deposit_eur", e.target.value)} /></label>
+          <label className="text-xs text-[#6B7269]">Capacity<input data-testid="retreat-capacity" type="number" className={ic} value={form.capacity} onChange={(e) => set("capacity", e.target.value)} /></label>
+        </div>
+        <input data-testid="retreat-cover" className={ic} value={form.cover_image} onChange={(e) => set("cover_image", e.target.value)} placeholder="Cover image URL (optional)" />
+        <button onClick={create} disabled={busy} data-testid="retreat-create" className="pill pill-primary w-full">{busy ? "Publishing…" : "Publish retreat"}</button>
+      </div>
+
+      <div className="eyebrow">All retreats {rows?.length ? `(${rows.length})` : ""}</div>
+      {rows === null ? <Spinner /> : rows.length === 0 ? (
+        <p className="text-sm text-[#6B7269] rounded-2xl bg-[#F2F2EC] p-5">No retreats yet.</p>
+      ) : (
+        <ul className="space-y-2" data-testid="retreats-list">
+          {rows.map((w) => (
+            <li key={w.id} className="rounded-2xl bg-white border border-[#E5E6DF] p-3 flex items-center justify-between gap-3" data-testid={`retreat-row-${w.id}`}>
+              <div className="min-w-0">
+                <div className="text-[14px] font-semibold truncate">{w.title}</div>
+                <div className="text-xs text-[#6B7269]">{String(w.start_date).slice(0, 10)} → {String(w.end_date).slice(0, 10)} · €{w.price_eur} · €{w.deposit_eur ?? 500} deposit</div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => toggleActive(w)} data-testid={`retreat-toggle-${w.id}`} className="text-xs rounded-full px-2.5 py-1 font-semibold" style={{ background: w.is_active ? "#EEF1EC" : "#F2F2EC", color: w.is_active ? "#5C7355" : "#6B7269" }}>{w.is_active ? "Active" : "Hidden"}</button>
+                <button onClick={() => remove(w)} data-testid={`retreat-delete-${w.id}`} className="text-xs text-[#B25A45] hover:underline">Delete</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+
 function GiftCardsPane() {
   const [cards, setCards] = useState(null);
   const [amount, setAmount] = useState(50);
@@ -1730,7 +1817,7 @@ function GiftCardsPane() {
 export default function Admin() {
   const { user, ready } = useAuth();
   const [params, setParams] = useSearchParams();
-  const validTabs = ["stats", "courses", "bundles", "students", "classes", "apps", "broadcast", "giftcards", "settings", "import"];
+  const validTabs = ["stats", "courses", "bundles", "students", "classes", "apps", "broadcast", "retreats", "giftcards", "settings", "import"];
   const initialTab = validTabs.includes(params.get("tab")) ? params.get("tab") : "stats";
   const [tab, setTab] = useState(initialTab);
   const selectTab = (t) => { setTab(t); setParams(t === "stats" ? {} : { tab: t }, { replace: true }); };
@@ -1749,6 +1836,7 @@ export default function Admin() {
           <Tab active={tab === "classes"} onClick={() => selectTab("classes")} tid="admin-tab-classes">Classes</Tab>
           <Tab active={tab === "apps"} onClick={() => selectTab("apps")} tid="admin-tab-apps">Applications</Tab>
           <Tab active={tab === "broadcast"} onClick={() => selectTab("broadcast")} tid="admin-tab-broadcast">Broadcast</Tab>
+          <Tab active={tab === "retreats"} onClick={() => selectTab("retreats")} tid="admin-tab-retreats">Retreats</Tab>
           <Tab active={tab === "giftcards"} onClick={() => selectTab("giftcards")} tid="admin-tab-giftcards">Gift Cards</Tab>
           <Tab active={tab === "settings"} onClick={() => selectTab("settings")} tid="admin-tab-settings">Settings</Tab>
           <Tab active={tab === "import"} onClick={() => selectTab("import")} tid="admin-tab-import">Import</Tab>
@@ -1762,6 +1850,7 @@ export default function Admin() {
           {tab === "classes" && <ClassesPane />}
           {tab === "apps" && <ApplicationsPane />}
           {tab === "broadcast" && <BroadcastPane />}
+          {tab === "retreats" && <RetreatsPane />}
           {tab === "giftcards" && <GiftCardsPane />}
           {tab === "settings" && <SettingsPane />}
           {tab === "import" && <ImportPane />}

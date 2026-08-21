@@ -3,7 +3,7 @@ import os
 import secrets
 from datetime import datetime, timedelta
 
-from fastapi import Depends, HTTPException, Response
+from fastapi import Depends, HTTPException, Response, Request
 
 from core import (
     api, db, logger, now_utc, gen_id, gen_referral_code, sha256_hex,
@@ -17,6 +17,32 @@ from email_service import (
     send_magic_link as email_magic_link,
     send_password_reset as email_password_reset,
 )
+
+# ---------- Brute-force protection ----------
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_MINUTES = 15
+
+
+async def _check_lockout(identifier: str):
+    rec = await db.login_attempts.find_one({"identifier": identifier})
+    if rec and rec.get("locked_until"):
+        try:
+            locked_until = datetime.fromisoformat(rec["locked_until"])
+        except Exception:
+            locked_until = None
+        if locked_until and locked_until > now_utc():
+            mins = max(1, int((locked_until - now_utc()).total_seconds() // 60) + 1)
+            raise HTTPException(429, f"Too many failed attempts. Please try again in {mins} minute(s).")
+
+
+async def _register_failed_attempt(identifier: str):
+    rec = await db.login_attempts.find_one({"identifier": identifier})
+    count = ((rec or {}).get("count", 0)) + 1
+    update = {"count": count, "last_attempt": now_utc().isoformat(), "identifier": identifier}
+    if count >= MAX_FAILED_ATTEMPTS:
+        update["locked_until"] = (now_utc() + timedelta(minutes=LOCKOUT_MINUTES)).isoformat()
+        update["count"] = 0  # reset the counter once locked
+    await db.login_attempts.update_one({"identifier": identifier}, {"$set": update}, upsert=True)
 
 
 @api.post("/auth/register")
@@ -60,13 +86,19 @@ async def register(payload: UserCreate, response: Response):
 
 
 @api.post("/auth/login")
-async def login(payload: UserLogin, response: Response):
+async def login(payload: UserLogin, response: Response, request: Request):
     email = payload.email.lower()
+    xff = request.headers.get("x-forwarded-for", "")
+    ip = (xff.split(",")[0].strip() if xff else None) or (request.client.host if request.client else "unknown")
+    identifier = f"{ip}:{email}"
+    await _check_lockout(identifier)
     user = await db.users.find_one({"email": email})
     if not user or not user.get("password_hash") or not verify_password(payload.password, user["password_hash"]):
+        await _register_failed_attempt(identifier)
         raise HTTPException(401, "Invalid email or password")
     if not user.get("active", True):
         raise HTTPException(403, "Account disabled")
+    await db.login_attempts.delete_one({"identifier": identifier})  # clear on success
     token = create_access_token(user["id"], email, user["role"], remember=payload.remember)
     cookie_age = (30 if payload.remember else (1 if payload.remember is False else 7)) * 86400
     response.set_cookie("access_token", token, httponly=True, samesite="lax", max_age=cookie_age, path="/")

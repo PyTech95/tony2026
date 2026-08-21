@@ -91,11 +91,11 @@ export default function WorkshopDetail() {
             <div className="rounded-3xl bg-[#1C221F] text-[#FAFAF7] p-6">
               <div className="eyebrow !text-[#B25A45] mb-2">Reserve your seat</div>
               <div className="flex items-baseline gap-3">
-                <span className="serif text-4xl">€500</span>
+                <span className="serif text-4xl">€{w.deposit_eur ?? 500}</span>
                 <span className="text-sm text-white/60">deposit</span>
               </div>
               <p className="text-xs text-white/60 mt-2">
-                Full price €{Math.round(w.price_eur)} · Balance of €{Math.round(w.price_eur - 500)} due 30 days before start.
+                Full price €{Math.round(w.price_eur)} · Balance of €{Math.round(w.price_eur - (w.deposit_eur ?? 500))} due 30 days before start.
               </p>
               <button
                 onClick={() => setStep("form")}
@@ -103,7 +103,7 @@ export default function WorkshopDetail() {
                 data-testid="workshop-reserve-btn"
                 className="pill !bg-[#B25A45] !text-white w-full mt-5"
               >
-                {spotsLeft === 0 ? "Full — join waitlist" : "Reserve with €500 deposit"} <ArrowRight className="h-4 w-4" />
+                {spotsLeft === 0 ? "Full — join waitlist" : `Reserve with €${w.deposit_eur ?? 500} deposit`} <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           </>
@@ -112,7 +112,7 @@ export default function WorkshopDetail() {
         {step === "form" && (
           <div className="space-y-3" data-testid="workshop-reserve-form">
             <div className="rounded-2xl bg-[#F2F2EC] p-4 text-xs text-[#545E56] leading-relaxed">
-              You'll pay €500 now. Balance of <strong>€{Math.round(w.price_eur - 500)}</strong> is due 30 days before the retreat starts. Fully refundable up to 60 days out.
+              You'll pay €{w.deposit_eur ?? 500} now. Balance of <strong>€{Math.round(w.price_eur - (w.deposit_eur ?? 500))}</strong> is due 30 days before the retreat starts. Fully refundable up to 60 days out.
             </div>
             <input required data-testid="reserve-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name" className="w-full rounded-2xl border border-[#E5E6DF] px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#B25A45]" />
             <input required type="email" data-testid="reserve-email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Email" className="w-full rounded-2xl border border-[#E5E6DF] px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#B25A45]" />
@@ -136,7 +136,7 @@ export default function WorkshopDetail() {
             <PaymentButtons
               itemType="workshop_deposit"
               itemId={reservationId || "pending"}
-              stripeLabel="Pay €500 deposit"
+              stripeLabel={`Pay €${w.deposit_eur ?? 500} deposit`}
               onBeforeCheckout={beforeReservationCheckout}
               testIdPrefix="reserve-pay"
               size="lg"

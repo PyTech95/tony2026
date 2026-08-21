@@ -196,7 +196,7 @@ function Retreats() {
           <h2 className="serif text-3xl sm:text-4xl leading-tight">Málaga, Spain.<br/>Sixteen students. One week.</h2>
         </div>
         <p className="text-[#545E56] leading-relaxed text-sm sm:text-base">
-          Small-group retreats in Andalusia. Two-a-day practice, breakfast on the terrace, deep instruction in Ghosh 84. Reserve a seat with a €500 deposit — balance due 30 days before the retreat begins.
+          Small-group retreats in Andalusia. Two-a-day practice, breakfast on the terrace, deep instruction in Ghosh 84. Reserve a seat with a deposit — balance due 30 days before the retreat begins.
         </p>
       </div>
       <ul className="grid md:grid-cols-2 gap-4 sm:gap-6" data-testid="marketing-retreats">
@@ -218,7 +218,7 @@ function Retreats() {
                 <p className="text-sm text-[#6B7269] mt-2 leading-relaxed clamp-2">{w.description}</p>
                 <div className="mt-4 flex items-center justify-between">
                   <div className="text-sm text-[#545E56]">{new Date(w.start_date).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</div>
-                  <div className="text-[#B25A45] font-semibold">€500 deposit</div>
+                  <div className="text-[#B25A45] font-semibold">€{w.deposit_eur ?? 500} deposit</div>
                 </div>
               </div>
             </Link>
@@ -286,7 +286,7 @@ function AppCTA({ onOpenApp }) {
     "Full Core 26+/40/84 on demand",
     "Class reminders 30 min before",
     "Track streaks · celebrate milestones",
-    "Book retreats with a €500 deposit",
+    "Book retreats with a small deposit",
     "Cancel anytime",
   ];
   return (
