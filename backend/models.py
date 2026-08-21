@@ -13,6 +13,7 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    remember: Optional[bool] = None
 
 class UserProfileUpdate(BaseModel):
     name: Optional[str] = None

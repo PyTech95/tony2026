@@ -67,8 +67,9 @@ async def login(payload: UserLogin, response: Response):
         raise HTTPException(401, "Invalid email or password")
     if not user.get("active", True):
         raise HTTPException(403, "Account disabled")
-    token = create_access_token(user["id"], email, user["role"])
-    response.set_cookie("access_token", token, httponly=True, samesite="lax", max_age=7 * 86400, path="/")
+    token = create_access_token(user["id"], email, user["role"], remember=payload.remember)
+    cookie_age = (30 if payload.remember else (1 if payload.remember is False else 7)) * 86400
+    response.set_cookie("access_token", token, httponly=True, samesite="lax", max_age=cookie_age, path="/")
     user.pop("password_hash", None); user.pop("_id", None)
     return {"user": user, "token": token}
 

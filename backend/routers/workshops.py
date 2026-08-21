@@ -2,7 +2,7 @@
 from typing import Optional
 from fastapi import HTTPException, Depends, Request
 from pydantic import BaseModel, EmailStr
-from datetime import datetime
+from datetime import datetime, timezone
 
 from core import api, db, now_utc, gen_id, get_current_user, require_role
 from email_service import send_email
@@ -40,7 +40,11 @@ class WorkshopRegistration(BaseModel):
 # ---------- Public ----------
 @api.get("/workshops")
 async def list_workshops():
-    rows = await db.workshops.find({"is_active": True}, {"_id": 0}).sort("start_date", 1).to_list(100)
+    # Only upcoming, active retreats — never surface past dates.
+    now_iso = datetime.now(timezone.utc).isoformat()
+    rows = await db.workshops.find(
+        {"is_active": True, "end_date": {"$gte": now_iso}}, {"_id": 0}
+    ).sort("start_date", 1).to_list(100)
     return rows
 
 

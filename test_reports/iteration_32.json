@@ -1,0 +1,50 @@
+{
+  "summary": "Iteration 32 — targeted verification of the two new spec-gap features only: (A) 'Remember me' at login and (B) AI-assistant leads CSV export. BACKEND: 12/12 pytest assertions pass (/app/backend/tests/test_iteration32.py + test_iteration32_leadseed.py). POST /api/auth/login honours the optional 'remember' boolean exactly as specced — remember=true -> JWT exp ~30d + Set-Cookie Max-Age=2592000; remember=false -> ~1d + Max-Age=86400; omitted -> ~7d + Max-Age=604800 (backward compatible). All three variants return {user, token} (no _id / password_hash leak) and the returned token authenticates GET /api/auth/me (200). Cookie is HttpOnly, SameSite=Lax. Bad password still 401; admin login with remember=true yields role=admin + 30d exp. GET /api/admin/assistant/leads/export.csv returns 200 text/csv with Content-Disposition attachment; filename=ai_leads.csv, exact header row 'name,email,phone,channel,goal,interest,status,created_at', one row per ai_leads doc (row count == /api/admin/assistant/leads total), and correct RFC-4180 quoting verified by seeding two leads containing a comma, embedded double-quotes and a newline (values round-tripped byte-exact; status='new'). Anonymous -> 401, student -> 403. Seeded leads were deleted afterwards (ai_leads back to 0). FRONTEND (mobile 390x844, real public URL): /login shows the 'Keep me signed in' checkbox (login-remember) DEFAULT CHECKED; login with it checked stores ty_auth_token in localStorage with sessionStorage EMPTY and the token persists to a brand-new tab (/home stays, no bounce to /login); unchecking it stores the token in sessionStorage ONLY with localStorage EMPTY and the app remains authenticated (/api/auth/me 200, navigation to /profile stays authenticated) proving tokenStore.get() falls back to sessionStorage. Admin -> /admin -> Settings tab -> AI Assistant card: 'Export leads CSV' (settings-assistant-leads-export) triggers a real browser download named ai_leads.csv with the correct header; 'View captured leads' toggle (settings-assistant-leads-toggle) opens and closes assistant-leads-list correctly. Zero page errors, zero error-class elements. Both features are working as specced.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/login", "issue": "No brute-force lockout / rate limiting (playbook expects lockout after 5 failed attempts). Repeated wrong passwords keep returning plain 401 forever — pre-existing, not introduced by this change."},
+      {"endpoint": "POST /api/auth/login", "issue": "access_token cookie is set without the Secure flag (HttpOnly + SameSite=Lax only) even though the app is served over HTTPS. Low impact because the frontend authenticates with the Bearer token, but the 30-day remember-me cookie now has a much longer exposure window."},
+      {"endpoint": "app CORS", "issue": "CORSMiddleware uses allow_origins=CORS_ORIGINS default '*' with allow_credentials=False. Consistent with Bearer auth, but the playbook asks for explicit origins + credentials; the cookie set at login can never be used cross-origin."},
+      {"endpoint": "GET /api/admin/assistant/leads/export.csv", "issue": "Hard 5000-doc cap with no pagination/streaming; a growing ai_leads collection will silently truncate the CRM export. Also io/csv/Response are imported inside the handler instead of module level."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/login", "issues": ["'Keep me signed in' uses the raw native browser checkbox — it renders default OS blue and ignores the brand classes (text-[#B25A45] does not colour a native checkbox without accent-color), so it clashes with the terracotta palette. Cosmetic only."]},
+      {"screen": "/admin Settings > AI Assistant", "issues": ["'Export leads CSV' is enabled and downloads a header-only file when there are 0 leads, with no toast/empty-state feedback; consider disabling it or toasting 'No leads yet' when the count is 0.", "Export button has no busy/loading state — a slow export gives no visual feedback."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration32.py",
+    "/app/backend/tests/test_iteration32_leadseed.py",
+    "/app/backend/tests/cleanup_iteration32.py",
+    "/app/test_reports/pytest/pytest_iteration32.xml"
+  ],
+  "action_items": [
+    "No functional fix required — both remember-me (backend exp/cookie + frontend localStorage/sessionStorage split) and the AI leads CSV export (admin-only, correct header/rows/escaping, browser download) work exactly as specced.",
+    "Optional hardening: add Secure=True to the access_token cookie and add login rate limiting/lockout (playbook item, currently absent).",
+    "Optional: paginate or stream the leads CSV instead of the 5000-doc to_list cap; move io/csv/Response imports to module scope.",
+    "Optional polish: style the remember-me checkbox to the brand palette (accent-color) and give the export button a busy state / empty-leads feedback."
+  ],
+  "critical_code_review_comments": [
+    "core.create_access_token uses `30 if remember else (1 if remember is False else 7)` — correct for True/False/None, but note any falsy non-None value (e.g. 0 coerced by pydantic to False) maps to 1 day; acceptable since UserLogin.remember is Optional[bool].",
+    "routers/auth.py duplicates the 30/1/7 day expression for the cookie max-age. Extract a single helper (e.g. token_lifetime_days(remember)) so JWT exp and cookie Max-Age can never drift apart.",
+    "tokenStore.set() correctly clears the opposite store, so no stale token can shadow the fresh one; tokenStore.get() reads localStorage first then sessionStorage — verified empirically in both directions.",
+    "register / magic-link consume still hardcode a 7-day token + 7-day cookie; that is intentional backward compatibility but the constant is now repeated in 3 places."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration32.py (new)",
+    "/app/backend/tests/test_iteration32_leadseed.py (new)",
+    "/app/backend/tests/cleanup_iteration32.py (new)"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% (3/3 scenarios: remember checked, remember unchecked, admin CSV export + leads toggle)"},
+  "seed_data_creation": "Two temporary ai_leads (name prefix TEST_, emails test_lead1/2@qa-example.com) created via POST /api/assistant/lead to validate CSV rows and escaping; both deleted afterwards — ai_leads count verified back to 0. No other data created; logins were with the existing seeded admin/student accounts.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "tony@tonyyoga.com / TonyYoga2026! (admin, bcrypt $2b$12$ verified), student@demo.com / Student2026! — both valid; seed() idempotently re-hashes the admin password when ADMIN_PASSWORD changes.",
+  "context_for_next_testing_agent": "Both iteration-32 features are verified PASS; no retest needed unless the auth token lifetime or the CSV export changes. Reusable assets: /app/backend/tests/test_iteration32.py (parametrised remember-me exp/cookie assertions using jwt.decode with verify_signature=False, plus CSV RBAC tests) and test_iteration32_leadseed.py (seeds leads via POST /api/assistant/lead, asserts CSV escaping, tears down via motor using dotenv_values('/app/backend/.env') — os.environ does NOT contain MONGO_URL in the pytest process, so always load the .env). Note POST /api/assistant/lead rejects .test/.invalid TLDs (email-validator), use a real-looking domain. There is no DELETE endpoint for ai_leads — use cleanup_iteration32.py. For storage assertions, clear BOTH stores and reload /login before each login attempt, and remember the checkbox defaults to checked.",
+  "rca_of_the_issue": "N/A — no defects found in the two features under test. The only test-side failures encountered were my own seed data (invalid .test email TLD rejected by email-validator, and MONGO_URL absent from the pytest process environment during teardown); both fixed in the test files, no application code touched."
+}

@@ -1442,9 +1442,26 @@ function AssistantCard({ form, set, inputCls, card }) {
         <Field label="Popup delay (seconds)"><input data-testid="settings-assistant-delay" type="number" min="0" className={inputCls} value={form.assistant_popup_delay} onChange={(e) => set("assistant_popup_delay", e.target.value)} /></Field>
         <Field label="WhatsApp number" hint="For the 'Chat with Tony' handoff (with country code)."><input data-testid="settings-assistant-whatsapp" className={inputCls} value={form.social_whatsapp} onChange={(e) => set("social_whatsapp", e.target.value)} placeholder="+34 600 000 000" /></Field>
       </div>
-      <button type="button" onClick={() => setShowLeads((v) => !v)} data-testid="settings-assistant-leads-toggle" className="pill pill-ghost !py-1.5 !px-3 !text-xs">
-        <Users className="h-3.5 w-3.5" /> {showLeads ? "Hide" : "View"} captured leads {leads ? `(${leads.length})` : ""}
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => setShowLeads((v) => !v)} data-testid="settings-assistant-leads-toggle" className="pill pill-ghost !py-1.5 !px-3 !text-xs">
+          <Users className="h-3.5 w-3.5" /> {showLeads ? "Hide" : "View"} captured leads {leads ? `(${leads.length})` : ""}
+        </button>
+        <button
+          type="button"
+          data-testid="settings-assistant-leads-export"
+          onClick={async () => {
+            try {
+              const res = await api.get("/admin/assistant/leads/export.csv", { responseType: "blob" });
+              const href = URL.createObjectURL(new Blob([res.data], { type: "text/csv" }));
+              const a = document.createElement("a"); a.href = href; a.download = "ai_leads.csv"; a.click();
+              URL.revokeObjectURL(href);
+            } catch { toast.error("Export failed"); }
+          }}
+          className="pill pill-ghost !py-1.5 !px-3 !text-xs"
+        >
+          <Users className="h-3.5 w-3.5" /> Export leads CSV
+        </button>
+      </div>
       {showLeads && leads && (
         <ul className="space-y-2 pt-1" data-testid="assistant-leads-list">
           {leads.length === 0 ? <li className="text-xs text-[#6B7269]">No leads captured yet.</li> : leads.slice(0, 30).map((l) => (

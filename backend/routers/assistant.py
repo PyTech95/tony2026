@@ -222,3 +222,25 @@ async def admin_assistant_leads(request: Request):
     await require_role(request, ["admin"])
     rows = await db.ai_leads.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
     return {"leads": rows, "total": len(rows)}
+
+
+@api.get("/admin/assistant/leads/export.csv")
+async def export_leads_csv(request: Request):
+    """CSV of captured AI-assistant leads for CRM / Google Sheet import. Admin-only."""
+    import io
+    import csv
+    from fastapi.responses import Response
+    await require_role(request, ["admin"])
+    rows = await db.ai_leads.find({}, {"_id": 0}).sort("created_at", -1).to_list(5000)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["name", "email", "phone", "channel", "goal", "interest", "status", "created_at"])
+    for r in rows:
+        writer.writerow([
+            r.get("name", ""), r.get("email", ""), r.get("phone", ""), r.get("channel", ""),
+            r.get("goal", ""), r.get("interest", ""), r.get("status", ""), r.get("created_at", ""),
+        ])
+    return Response(
+        content=buf.getvalue(), media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="ai_leads.csv"'},
+    )

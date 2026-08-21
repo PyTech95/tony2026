@@ -69,10 +69,12 @@ def verify_password(pw: str, hashed: str) -> bool:
 
 
 # ---------------- JWT ----------------
-def create_access_token(user_id: str, email: str, role: str) -> str:
+def create_access_token(user_id: str, email: str, role: str, remember: Optional[bool] = None) -> str:
+    # remember True -> 30 days, False -> 1 day, None (default callers) -> 7 days.
+    days = 30 if remember else (1 if remember is False else 7)
     payload = {
         "sub": user_id, "email": email, "role": role, "type": "access",
-        "exp": now_utc() + timedelta(days=7),
+        "exp": now_utc() + timedelta(days=days),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 

@@ -167,3 +167,15 @@ Still-open (spec 'future'/optional, not built): leaderboard admin toggle UI, gif
 - ROOT CAUSE: YouTube IFrame API REPLACES the mount div with its <iframe>; that div was a direct sibling of overlays (ClipChip/play button/BottomBar). On overlay re-render React ran insertBefore against the now-detached mount node -> crash.
 - FIX (VideoPlayer.jsx): mount div is now the sole child of a stable `absolute inset-0 pointer-events-none` wrapper; overlays are siblings of that wrapper, so React never reorders around the replaced node.
 - VERIFIED: testing agent iter31 used the REAL YouTube API (no stub) on both crash URLs; 100% pass, no insertBefore/NotFoundError across play/pause, mute, seek, fullscreen, resume, and SPA nav.
+
+## Iteration 32 (2026-06) — Final spec-gap closeout + mobile packaging
+- "Remember me" at login: UserLogin.remember (bool); create_access_token exp 30d(true)/1d(false)/7d(none, backward-compat); cookie max-age matches. Frontend Login "Keep me signed in" checkbox (default on); tokenStore uses localStorage (persist) vs sessionStorage (session-only). VERIFIED 12/12 backend + 3/3 frontend.
+- AI leads CSV export: GET /admin/assistant/leads/export.csv (admin) + "Export leads CSV" button in admin AI card (settings-assistant-leads-export). Covers spec 5 "send to CRM/Google Sheet".
+- Mobile packaging (spec 2): added /app/frontend/capacitor.config.json + /app/MOBILE_BUILD.md (Capacitor Android/iOS wrap steps, permissions, live-reload, store assets). PWA already installable (manifest standalone/portrait/maskable, viewport-fit=cover, apple meta, sw.js). Responsive audit: no horizontal overflow on home/programs/shop/schedule; member app is mobile-first (centered column + bottom tab bar).
+- SPEC NOW ~100%. Optional hardening noted (Secure cookie, login lockout) — deferred.
+
+## Retreats cleanup (2026-06)
+- User: keep only the coming December Core 40 retreat; remove old dates.
+- Live DB: deactivated Core 26+ (Apr), Yoga Holiday (May), Core 84 (Jul); kept Tree of Yoga · Core 40 (Dec 1-7).
+- seed.py: now seeds only the Core 40 December retreat.
+- GET /api/workshops now filters is_active AND end_date>=now (upcoming only). Verified: /workshops returns 1 (Core 40 Dec); marketing Retreats section shows just that card.

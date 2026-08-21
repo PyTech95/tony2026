@@ -328,57 +328,10 @@ async def seed():
             "audience": "all", "created_at": now_utc().isoformat(), "author": "Tony",
         })
 
-    # Seed workshops (idempotent — only if collection empty)
+    # Seed retreats (idempotent — only if collection empty). Only the upcoming
+    # December Core 40 retreat is seeded/active; past retreats are not shown.
     if await db.workshops.count_documents({}) == 0:
         await db.workshops.insert_many([
-            {
-                "id": gen_id(),
-                "title": "Genesis of Yoga · Core 26+",
-                "subtitle": "For students or teachers to deepen knowledge and improve practice.",
-                "system": "Core 26+",
-                "description": "We cover philosophy, history, practice principles and movement in the planes — for therapeutic, safe and sustainable practice and teaching.",
-                "location": "Villa San Pedro · Málaga, Spain",
-                "start_date": "2026-04-08T09:00:00+00:00",
-                "end_date": "2026-04-13T18:00:00+00:00",
-                "nights": 6, "meals_included": True,
-                "price_eur": 1600.0, "teacher_training_price_eur": None,
-                "cover_image": "https://images.squarespace-cdn.com/content/v1/620bca2d082bbf5542408178/1645608838615-ZCYH6HCH1EZN3O08MN54/Core26.jpg",
-                "schedule": "9:00–1:00 pm / 3:00–6:00 pm",
-                "capacity": 14, "is_active": True,
-                "created_at": now_utc().isoformat(),
-            },
-            {
-                "id": gen_id(),
-                "title": "Yoga Holiday",
-                "subtitle": "Yoga · Museums · Beach · Fine Dining",
-                "system": "Yoga Holiday",
-                "description": "A gentler retreat hosted with Isabel @yogagbg — daily practice, exploration of Málaga's museums and beaches, and slow dinners. Five days of restoration.",
-                "location": "Villa San Pedro · Málaga, Spain",
-                "start_date": "2026-05-08T09:00:00+00:00",
-                "end_date": "2026-05-12T18:00:00+00:00",
-                "nights": 5, "meals_included": True,
-                "price_eur": 1200.0, "teacher_training_price_eur": None,
-                "cover_image": "https://images.squarespace-cdn.com/content/v1/620bca2d082bbf5542408178/6b55c6a0-8c26-4670-8cb7-68a45f7371fb/TonySanchez-head-to-knee.png",
-                "schedule": "Morning practice + afternoons free",
-                "capacity": 14, "is_active": True,
-                "created_at": now_utc().isoformat(),
-            },
-            {
-                "id": gen_id(),
-                "title": "Classic 84 Asanas · Core 84",
-                "subtitle": "For advanced students or teachers to take your practice to a higher level.",
-                "system": "Core 84",
-                "description": "We cover yoga philosophy, history, practice principles and movement in the planes for safe and sustainable practice and teaching. The full Ghosh lineage 84-asana challenge system.",
-                "location": "Villa San Pedro · Málaga, Spain",
-                "start_date": "2026-07-14T09:00:00+00:00",
-                "end_date": "2026-07-20T18:00:00+00:00",
-                "nights": 6, "meals_included": True,
-                "price_eur": 1600.0, "teacher_training_price_eur": 3500.0,
-                "cover_image": "https://images.squarespace-cdn.com/content/v1/620bca2d082bbf5542408178/1645553998616-K2P2CXQSJD43Y1JDV59X/Core+84.jpg",
-                "schedule": "9:00–1:00 pm / 3:00–6:00 pm",
-                "capacity": 12, "is_active": True,
-                "created_at": now_utc().isoformat(),
-            },
             {
                 "id": gen_id(),
                 "title": "Tree of Yoga · Core 40",

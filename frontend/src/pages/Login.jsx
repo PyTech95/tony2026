@@ -10,6 +10,7 @@ export default function Login() {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const submit = async (e) => {
@@ -17,7 +18,7 @@ export default function Login() {
     if (busy) return;
     setBusy(true);
     try {
-      await login(email.trim(), password);
+      await login(email.trim(), password, remember);
       toast.success("Welcome back.");
       nav("/home");
     } catch (err) {
@@ -81,6 +82,17 @@ export default function Login() {
             autoComplete="current-password"
             className="mt-2 w-full rounded-2xl border border-[#E5E6DF] bg-white px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#B25A45] focus:border-transparent"
           />
+        </label>
+
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            data-testid="login-remember"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            className="h-4 w-4 rounded border-[#C9CBBF] text-[#B25A45] focus:ring-[#B25A45]"
+          />
+          <span className="text-[13px] text-[#545E56]">Keep me signed in</span>
         </label>
 
         <button

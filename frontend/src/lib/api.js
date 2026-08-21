@@ -7,13 +7,18 @@ const TOKEN_KEY = "ty_auth_token";
 
 export const tokenStore = {
   get: () => {
-    try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+    try { return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY); } catch { return null; }
   },
-  set: (t) => {
-    try { localStorage.setItem(TOKEN_KEY, t); } catch {}
+  // remember=true -> persist across browser restarts (localStorage);
+  // remember=false -> current session only (sessionStorage).
+  set: (t, remember = true) => {
+    try {
+      if (remember) { localStorage.setItem(TOKEN_KEY, t); sessionStorage.removeItem(TOKEN_KEY); }
+      else { sessionStorage.setItem(TOKEN_KEY, t); localStorage.removeItem(TOKEN_KEY); }
+    } catch {}
   },
   clear: () => {
-    try { localStorage.removeItem(TOKEN_KEY); } catch {}
+    try { localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY); } catch {}
   },
 };
 
