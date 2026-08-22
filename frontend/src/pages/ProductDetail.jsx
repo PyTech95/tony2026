@@ -18,6 +18,7 @@ export default function ProductDetail() {
   const [bundle, setBundle] = useState(null);
   const [size, setSize] = useState(null);
   const [qty, setQty] = useState(1);
+  const [activeImg, setActiveImg] = useState(0);
 
   useEffect(() => {
     api.get(`/products/${id}`).then(({ data }) => {
@@ -50,9 +51,25 @@ export default function ProductDetail() {
       <PageHeader eyebrow={p.category} title={p.title} back testId="product-header" action={<div className="flex items-center gap-2"><HeartButton targetType="product" targetId={p.id} /><CartBadge /></div>} />
 
       <div className="mx-auto max-w-2xl px-5 space-y-6">
-        {p.images?.[0] && (
-          <div className="rounded-3xl overflow-hidden aspect-[4/5] bg-[#F2F2EC]">
-            <img src={p.images[0]} alt="" className="h-full w-full object-cover" />
+        {p.images?.length > 0 && (
+          <div className="space-y-3" data-testid="product-gallery">
+            <div className="rounded-3xl overflow-hidden aspect-[4/5] bg-[#F2F2EC]">
+              <img src={p.images[activeImg] || p.images[0]} alt={p.title} className="h-full w-full object-cover" data-testid="product-gallery-main" />
+            </div>
+            {p.images.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                {p.images.map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveImg(i)}
+                    data-testid={`product-thumb-${i}`}
+                    className={`shrink-0 h-16 w-16 rounded-xl overflow-hidden border-2 transition-colors ${i === activeImg ? "border-[#B25A45]" : "border-transparent opacity-70 hover:opacity-100"}`}
+                  >
+                    <img src={img} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

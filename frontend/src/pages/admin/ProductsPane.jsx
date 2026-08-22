@@ -69,6 +69,18 @@ function ProductsPane() {
   const allSelected = rows && rows.length > 0 && selected.size === rows.length;
   const toggleSelectAll = () => setSelected(allSelected ? new Set() : new Set((rows || []).map((p) => p.id)));
 
+  const bulkVisibility = async (visible) => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const { data } = await api.post("/admin/products/bulk-visibility", { ids, visible });
+      toast.success(`${visible ? "Published" : "Hidden"} ${data.updated} product${data.updated === 1 ? "" : "s"}`);
+      load();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Update failed"); }
+    finally { setBulkBusy(false); }
+  };
+
   const bulkDelete = async () => {
     const ids = [...selected];
     if (ids.length === 0) return;
@@ -193,12 +205,28 @@ function ProductsPane() {
               {allSelected ? "Deselect all" : "Select all"}
             </button>
             <button
+              onClick={() => bulkVisibility(false)}
+              disabled={selected.size === 0 || bulkBusy}
+              data-testid="products-bulk-hide"
+              className="pill pill-ghost !py-1.5 !px-3 !text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <EyeOff className="h-3.5 w-3.5" /> Hide
+            </button>
+            <button
+              onClick={() => bulkVisibility(true)}
+              disabled={selected.size === 0 || bulkBusy}
+              data-testid="products-bulk-show"
+              className="pill pill-ghost !py-1.5 !px-3 !text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Eye className="h-3.5 w-3.5" /> Show
+            </button>
+            <button
               onClick={bulkDelete}
               disabled={selected.size === 0 || bulkBusy}
               data-testid="products-bulk-delete"
               className="pill !py-1.5 !px-3 !text-xs !bg-[#B25A45] !text-white hover:!bg-[#9c4c39] disabled:!bg-[#E5E6DF] disabled:!text-[#9AA096] disabled:cursor-not-allowed"
             >
-              <Trash2 className="h-3.5 w-3.5" /> {bulkBusy ? "Deleting…" : `Delete selected${selected.size ? ` (${selected.size})` : ""}`}
+              <Trash2 className="h-3.5 w-3.5" /> {bulkBusy ? "Working…" : `Delete${selected.size ? ` (${selected.size})` : ""}`}
             </button>
           </div>
         )}

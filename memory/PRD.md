@@ -310,6 +310,13 @@ User choices: Printful auto-confirm BUT only on LIVE payments (skip in sandbox);
 - Shop.jsx: imageless products render a branded "Membership" placeholder (Flower2 icon) instead of a blank grey box.
 - VERIFIED: testing_agent iteration_49 100% (backend + UI) + self-screenshot (19 mockups load, 0 broken, 0 tonyoga refs, 17 placeholders).
 - USER Q: no Printful/domain change needed — images now pull straight from Printful's CDN; tonyoga.com/tonyoga.online are no longer referenced anywhere.
+
+## Shop polish batch (2026-08-22)
+- LIVE-DOMAIN SAFE: all product images are absolute files.cdn.printful.com URLs and frontend calls use REACT_APP_BACKEND_URL — nothing is tied to the preview host, so images/shop work unchanged on www.tonyoga.com after deploy.
+- HIDE VIRTUAL ITEMS: the 17 imageless virtual products (subscriptions/sessions/holidays) set visible=false via bulk-visibility; public /products (filters visible!=False) now returns 19 physical products only.
+- BULK HIDE/SHOW: POST `/api/admin/products/bulk-visibility` {ids, visible} (update_many). ProductsPane adds "Hide" (`products-bulk-hide`) + "Show" (`products-bulk-show`) buttons next to Delete.
+- MULTIPLE PRODUCT PHOTOS: ProductDetail.jsx now renders a gallery (`product-gallery`, main `product-gallery-main`, thumbs `product-thumb-<i>`) from p.images (mockups + catalog + print files). VERIFIED via screenshot (3 thumbs, switching works, images load).
+- NOTE: WooCommerce Consumer key/secret the user pasted are NOT used (shop runs on Printful, not WooCommerce); advised user to rotate the shared secret.
 - POST `/api/admin/products/bulk-delete` {ids:[...]} (admin) → delete_many, returns {deleted}; 400 on empty ids. (content.py)
 - `ProductsPane.jsx`: each product row has a checkbox (`product-checkbox-<id>`), a "Select all"/"Deselect all" toggle (`products-select-all`), and a "Delete selected (N)" button (`products-bulk-delete`) with a window.confirm. Selected rows highlight amber. VERIFIED (curl + screenshot).
 

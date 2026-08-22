@@ -540,6 +540,18 @@ async def bulk_delete_products(request: Request):
     return {"ok": True, "deleted": res.deleted_count}
 
 
+@api.post("/admin/products/bulk-visibility")
+async def bulk_visibility_products(request: Request):
+    await require_role(request, ["admin"])
+    body = await request.json()
+    ids = [str(i) for i in (body or {}).get("ids", []) if i]
+    visible = bool((body or {}).get("visible"))
+    if not ids:
+        raise HTTPException(400, "No product ids provided")
+    res = await db.products.update_many({"id": {"$in": ids}}, {"$set": {"visible": visible}})
+    return {"ok": True, "updated": res.modified_count, "visible": visible}
+
+
 @api.get("/admin/products")
 async def admin_list_products(request: Request):
     await require_role(request, ["admin"])
