@@ -40,10 +40,10 @@ export default function AssistantWidget() {
 
   useEffect(() => { api.get("/assistant/config").then(({ data }) => setCfg(data)).catch(() => setCfg(false)); }, []);
 
-  // Auto-open the panel shortly after load (once per session, unless dismissed).
+  // Show a small teaser bubble shortly after load (once per session, unless dismissed).
   useEffect(() => {
     if (!cfg || cfg.enabled === false || dismissed) return;
-    const t = setTimeout(() => { setOpen(true); setTeaser(true); }, Math.min((cfg.popup_delay || 3), 3) * 1000);
+    const t = setTimeout(() => setTeaser(true), Math.min((cfg.popup_delay || 3), 4) * 1000);
     return () => clearTimeout(t);
   }, [cfg, dismissed]);
 
@@ -335,15 +335,44 @@ export default function AssistantWidget() {
       </AnimatePresence>
 
       {!open && (
-        <motion.button
-          whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-          onClick={() => { setOpen(true); setTeaser(false); }}
-          data-testid="assistant-launcher"
-          className="h-14 w-14 rounded-full bg-[#B25A45] text-white shadow-xl flex items-center justify-center"
-          aria-label="Open Tony's assistant"
-        >
-          <MessageCircle className="h-6 w-6" />
-        </motion.button>
+        <>
+          <AnimatePresence>
+            {teaser && (
+              <motion.div
+                initial={{ opacity: 0, y: 12, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.9 }}
+                transition={{ type: "spring", stiffness: 320, damping: 26 }}
+                className="relative w-[240px] rounded-2xl rounded-br-md bg-white shadow-xl border border-[#E5E6DF] p-3"
+                data-testid="assistant-teaser"
+              >
+                <button
+                  onClick={(e) => { e.stopPropagation(); setTeaser(false); setDismissed(true); sessionStorage.setItem("ty_assistant_dismissed", "1"); }}
+                  data-testid="assistant-teaser-close"
+                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-[#1C221F] text-white flex items-center justify-center shadow-md hover:opacity-90"
+                  aria-label="Dismiss"
+                ><X className="h-3 w-3" /></button>
+                <button onClick={() => { setOpen(true); setTeaser(false); }} data-testid="assistant-teaser-open" className="flex items-start gap-2.5 text-left w-full">
+                  <span className="mt-0.5 h-8 w-8 shrink-0 rounded-full bg-[#B25A45] text-white flex items-center justify-center"><MessageCircle className="h-4 w-4" /></span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-bold text-[#1C221F]">Tony's Assistant</span>
+                    <span className="block text-[12px] text-[#545E56] leading-snug line-clamp-2">{cfg.greeting || "Hi! How can I help you today?"}</span>
+                    <span className="mt-1 inline-block text-[11px] font-semibold text-[#B25A45]">Tap to chat →</span>
+                  </span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            onClick={() => { setOpen(true); setTeaser(false); }}
+            data-testid="assistant-launcher"
+            className="relative h-14 w-14 rounded-full bg-[#B25A45] text-white shadow-xl flex items-center justify-center"
+            aria-label="Open Tony's assistant"
+          >
+            {teaser && <span className="absolute inset-0 rounded-full bg-[#B25A45]/40 animate-ping" />}
+            <MessageCircle className="h-6 w-6 relative" />
+          </motion.button>
+        </>
       )}
     </div>
   );
