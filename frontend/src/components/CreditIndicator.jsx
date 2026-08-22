@@ -32,7 +32,7 @@ export default function CreditIndicator() {
       <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#B25A45]/12">
         <Gift className="h-3 w-3 text-[#B25A45]" />
       </span>
-      ${credit.toFixed(2)}
+      €{credit.toFixed(2)}
     </Link>
   );
 }

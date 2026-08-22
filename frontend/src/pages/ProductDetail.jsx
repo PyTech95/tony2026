@@ -105,12 +105,12 @@ export default function ProductDetail() {
 
         <div className="flex items-baseline justify-between">
           <div className="flex items-baseline gap-3">
-            <div className="serif text-4xl">${p.price}</div>
+            <div className="serif text-4xl">€{p.price}</div>
             {p.compare_at_price > p.price && (
               <>
-                <div className="text-xl text-[#9AA096] line-through" data-testid="product-compare-price">${p.compare_at_price}</div>
+                <div className="text-xl text-[#9AA096] line-through" data-testid="product-compare-price">€{p.compare_at_price}</div>
                 <span className="rounded-full bg-[#B25A45] px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold text-white" data-testid="product-sale-badge">
-                  Save ${(p.compare_at_price - p.price).toFixed(0)}
+                  Save €{(p.compare_at_price - p.price).toFixed(0)}
                 </span>
               </>
             )}

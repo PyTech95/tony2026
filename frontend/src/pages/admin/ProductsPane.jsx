@@ -308,13 +308,13 @@ function ProductsPane() {
                     <input className={ic} value={p.title || ""} onChange={(e) => set(p.id, "title", e.target.value)} data-testid={`product-title-${p.id}`} />
                     {p.source === "printful" && <span className="shrink-0 text-[9px] uppercase tracking-widest font-bold bg-[#F7ECE8] text-[#B25A45] rounded-full px-2 py-1">Printful</span>}
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <input className={ic} type="number" value={p.price ?? 0} onChange={(e) => set(p.id, "price", e.target.value)} placeholder="Price" data-testid={`product-price-${p.id}`} />
                     <input className={ic} type="number" value={p.compare_at_price ?? ""} onChange={(e) => set(p.id, "compare_at_price", e.target.value)} placeholder="Was (sale)" data-testid={`product-compare-${p.id}`} />
                     <input className={ic} value={p.category || ""} onChange={(e) => set(p.id, "category", e.target.value)} placeholder="Category" />
                     <input className={ic} type="number" value={p.stock_qty ?? 0} onChange={(e) => set(p.id, "stock_qty", e.target.value)} placeholder="Stock" />
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button onClick={() => save(p)} data-testid={`product-save-${p.id}`} className="pill pill-primary !py-1.5 !px-3 !text-xs"><Save className="h-3.5 w-3.5" /> Save</button>
                     <button onClick={() => toggleVisible(p)} data-testid={`product-visible-${p.id}`} className="pill pill-ghost !py-1.5 !px-3 !text-xs">
                       {p.visible !== false ? <><Eye className="h-3.5 w-3.5" /> Visible</> : <><EyeOff className="h-3.5 w-3.5" /> Hidden</>}

@@ -235,7 +235,7 @@ export default function FindYourPath() {
                 <p className="text-sm text-[#B7BEB4] mt-1">
                   {result.membership.price != null && (
                     <span className="text-[#FAFAF7] font-semibold" data-testid="quiz-membership-price">
-                      {(result.membership.currency || "usd").toUpperCase() === "EUR" ? "€" : "$"}{Number(result.membership.price).toFixed(0)}
+                      {(result.membership.currency || "eur").toUpperCase() === "USD" ? "$" : "€"}{Number(result.membership.price).toFixed(0)}
                     </span>
                   )}
                   <span className="capitalize"> {result.membership.price != null ? "· " : ""}{(result.membership.billing_cycle || "monthly")} plan</span>

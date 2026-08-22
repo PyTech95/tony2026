@@ -30,7 +30,7 @@ function RevenueTrend() {
               <XAxis dataKey="month" interval={0} tick={{ fontSize: 11, fill: "#839682" }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{ borderRadius: 12, border: "1px solid #E5E6DF", fontSize: 12 }}
-                formatter={(v) => [`$${v}`, "Revenue"]}
+                formatter={(v) => [`€${v}`, "Revenue"]}
                 cursor={{ stroke: "#B25A45", strokeOpacity: 0.2 }}
               />
               <Area type="monotone" dataKey="revenue" stroke="#B25A45" strokeWidth={2.5} fill="url(#revGrad)" />
@@ -136,7 +136,7 @@ function DashboardHome() {
                     <div className="text-[13px] font-semibold truncate capitalize">{(p.item_type || "purchase").replace(/_/g, " ")}</div>
                     <div className="text-[11px] text-[#6B7269] truncate">{p.user_email} · {p.provider}</div>
                   </div>
-                  <span className="text-[13px] font-semibold text-[#545E56] shrink-0">{p.currency === "EUR" ? "€" : ""}{Math.round(p.amount)}</span>
+                  <span className="text-[13px] font-semibold text-[#545E56] shrink-0">{(p.currency || "eur").toUpperCase() === "USD" ? "$" : "€"}{Math.round(p.amount)}</span>
                 </li>
               ))}
             </ul>
@@ -157,7 +157,7 @@ function StatsPane() {
     { label: "Students", v: stats.students, i: <Users className="h-4 w-4" /> },
     { label: "Bookings", v: stats.bookings, i: <Calendar className="h-4 w-4" /> },
     { label: "Active subs", v: stats.active_subscriptions, i: <TrendingUp className="h-4 w-4" /> },
-    { label: "Revenue", v: `$${stats.revenue}`, i: <TrendingUp className="h-4 w-4" /> },
+    { label: "Revenue", v: `€${stats.revenue}`, i: <TrendingUp className="h-4 w-4" /> },
     { label: "Transactions", v: stats.transactions, i: <TrendingUp className="h-4 w-4" /> },
   ];
   return (

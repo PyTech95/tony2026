@@ -99,18 +99,18 @@ export default function Cart() {
                 <>
                   <div className="flex items-center justify-between text-sm text-[#6B7269]">
                     <span>Subtotal</span>
-                    <span data-testid="cart-subtotal-raw">${subtotal.toFixed(2)}</span>
+                    <span data-testid="cart-subtotal-raw">€{subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm text-[#839682] font-semibold" data-testid="cart-discount-row">
                     <span>{promo?.pct}% bundle discount</span>
-                    <span>−${discount.toFixed(2)}</span>
+                    <span>−€{discount.toFixed(2)}</span>
                   </div>
                   <div className="h-px bg-[#E0E1D8]" />
                 </>
               )}
               <div className="flex items-center justify-between">
                 <div className="eyebrow">Total</div>
-                <div className="serif text-2xl" data-testid="cart-subtotal">${total.toFixed(2)}</div>
+                <div className="serif text-2xl" data-testid="cart-subtotal">€{total.toFixed(2)}</div>
               </div>
             </div>
 
@@ -124,7 +124,7 @@ export default function Cart() {
         {step === "shipping" && (
           <div className="space-y-3" data-testid="cart-shipping-form">
             <div className="rounded-2xl bg-[#F2F2EC] p-4 text-xs text-[#6B7269]">
-              Ships within 3-5 business days. Total: <span className="font-semibold text-[#1C221F]">${total.toFixed(2)}</span>
+              Ships within 3-5 business days. Total: <span className="font-semibold text-[#1C221F]">€{total.toFixed(2)}</span>
               {discount > 0 && <span className="text-[#839682] font-semibold"> · {promo?.pct}% bundle saving applied</span>}
             </div>
             <input required data-testid="ship-name" value={addr.name} onChange={(e) => setAddr({ ...addr, name: e.target.value })} placeholder="Full name" className="w-full rounded-2xl border border-[#E5E6DF] px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#B25A45]" />
@@ -141,7 +141,7 @@ export default function Cart() {
             <PaymentButtons
               itemType="cart"
               itemId={orderId || "pending"}
-              stripeLabel={`Pay $${total.toFixed(2)}`}
+              stripeLabel={`Pay €${total.toFixed(2)}`}
               onBeforeCheckout={beforeCheckout}
               testIdPrefix="cart-pay"
               size="lg"

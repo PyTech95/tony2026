@@ -100,7 +100,7 @@ export default function PaymentButtons({
           />
           <Gift className="h-4 w-4 text-[#B25A45] shrink-0" />
           <span className="text-[13px] text-[#5C5346]">
-            Apply my gift-card credit <span className="font-semibold text-[#1C221F]">${credit.toFixed(2)}</span>
+            Apply my gift-card credit <span className="font-semibold text-[#1C221F]">€{credit.toFixed(2)}</span>
           </span>
         </label>
       )}

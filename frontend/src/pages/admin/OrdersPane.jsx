@@ -12,7 +12,7 @@ const STATUS_STYLE = {
   skipped_test_mode: "bg-[#F2F2EC] text-[#9AA096]",
 };
 
-function fmtMoney(v, c) { return `${(c || "usd").toUpperCase() === "EUR" ? "€" : "$"}${Number(v || 0).toFixed(2)}`; }
+function fmtMoney(v, c) { return `${(c || "eur").toUpperCase() === "USD" ? "$" : "€"}${Number(v || 0).toFixed(2)}`; }
 
 export default function OrdersPane() {
   const [rows, setRows] = useState(null);

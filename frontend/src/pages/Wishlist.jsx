@@ -15,7 +15,7 @@ const ROUTE = {
 
 function ItemCard({ target_type, item }) {
   const image = item.images?.[0] || item.cover_image;
-  const price = item.price != null ? `${item.currency === "eur" || item.currency === "EUR" ? "€" : "$"}${Math.round(item.price)}` : item.price_eur ? `€${Math.round(item.price_eur)}` : "";
+  const price = item.price != null ? `${(item.currency || "eur").toString().toUpperCase() === "USD" ? "$" : "€"}${Math.round(item.price)}` : item.price_eur ? `€${Math.round(item.price_eur)}` : "";
   return (
     <Link
       to={ROUTE[target_type](item.id)}

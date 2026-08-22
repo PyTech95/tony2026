@@ -377,8 +377,8 @@ function BestSellers() {
               </div>
               <div className="mt-2 text-[13px] font-semibold text-[#1C221F] leading-tight line-clamp-2">{p.title}</div>
               <div className="mt-0.5 flex items-baseline gap-1.5">
-                <span className="text-sm text-[#B25A45] font-semibold">${p.price}</span>
-                {p.compare_at_price > p.price && <span className="text-xs text-[#9AA096] line-through">${p.compare_at_price}</span>}
+                <span className="text-sm text-[#B25A45] font-semibold">€{p.price}</span>
+                {p.compare_at_price > p.price && <span className="text-xs text-[#9AA096] line-through">€{p.compare_at_price}</span>}
               </div>
             </Link>
           ))}

@@ -112,7 +112,7 @@ export function CheckoutCancel() {
         <p className="text-sm text-[#6B7269] mb-3">No charge was made. Come back anytime.</p>
         {released != null && (
           <p className="text-sm text-[#3E5B3E] mb-6" data-testid="checkout-credit-restored">
-            Your ${released.toFixed(2)} gift-card credit has been returned to your account.
+            Your €{released.toFixed(2)} gift-card credit has been returned to your account.
           </p>
         )}
         <Link to="/memberships" className="pill pill-primary inline-flex">See plans again</Link>

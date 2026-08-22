@@ -31,7 +31,7 @@ export default function CreditNudge({ className = "", testId = "credit-nudge" })
         <Gift className="h-4 w-4 text-[#B25A45]" />
       </span>
       <div className="text-[13px] text-[#5C5346] leading-snug">
-        You have <span className="font-bold text-[#1C221F]">${credit.toFixed(2)}</span> gift-card credit
+        You have <span className="font-bold text-[#1C221F]">€{credit.toFixed(2)}</span> gift-card credit
         <span className="text-[#6B7269]"> — apply it at checkout.</span>
       </div>
     </div>
