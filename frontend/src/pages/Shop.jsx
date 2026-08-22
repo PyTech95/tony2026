@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { Flower2 } from "lucide-react";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
@@ -48,7 +49,14 @@ export default function Shop() {
                   className="block rounded-2xl overflow-hidden bg-white border border-[#E5E6DF] hover:border-[#B25A45] transition"
                 >
                   <div className="aspect-square bg-[#F2F2EC] overflow-hidden">
-                    {p.images?.[0] && <img src={p.images[0]} alt="" className="h-full w-full object-cover" />}
+                    {p.images?.[0] ? (
+                      <img src={p.images[0]} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="h-full w-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#F2F2EC] to-[#E8E4DA] text-[#9AA096]" data-testid="product-placeholder">
+                        <Flower2 className="h-8 w-8 text-[#B25A45]/60" />
+                        <span className="text-[10px] uppercase tracking-widest font-bold">Membership</span>
+                      </div>
+                    )}
                   </div>
                   <div className="p-3">
                     <div className="text-[13px] font-semibold leading-tight clamp-2">{p.title}</div>

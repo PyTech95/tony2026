@@ -17,14 +17,6 @@ PRINTFUL_STORE_ID = os.environ.get("PRINTFUL_STORE_ID")
 BASE = "https://api.printful.com"
 
 
-def _img_url(u: str) -> str:
-    """The old WordPress domain tonyoga.com now serves the web app (images 404),
-    but the same media still lives on tonyoga.online (no hotlink protection)."""
-    if not u:
-        return u
-    return u.replace("://www.tonyoga.com/", "://tonyoga.online/").replace("://tonyoga.com/", "://tonyoga.online/")
-
-
 def _headers(store_id=None):
     if not PRINTFUL_TOKEN:
         raise HTTPException(400, "Printful is not configured (missing PRINTFUL_TOKEN).")
@@ -54,7 +46,15 @@ def _normalize(full: dict) -> dict:
     variants: List[dict] = []
     prices = []
     currency = "usd"
-    cdn_imgs: List[str] = []  # Printful CDN images (load anywhere)
+    # Bucket images by kind so the storefront shows the product MOCKUP, not the
+    # raw print-file artwork. Printful file types: 'preview' = generated mockup
+    # (the product with the design applied) → what we want first; 'default' =
+    # the print file (bare artwork) → last resort only. product.image = the
+    # catalog product shot. All are on files.cdn.printful.com (no WordPress).
+    mockups: List[str] = []
+    catalog: List[str] = []
+    other_files: List[str] = []
+    prints: List[str] = []
     for v in svs:
         try:
             price = float(v.get("retail_price") or 0)
@@ -63,12 +63,26 @@ def _normalize(full: dict) -> dict:
         if price:
             prices.append(price)
         currency = (v.get("currency") or currency).lower()
-        files = v.get("files", [])
-        imgs = [f.get("preview_url") for f in files if f.get("preview_url")]
+        v_mock, v_print, v_other = [], [], []
+        for f in v.get("files", []):
+            pu = f.get("preview_url")
+            if not pu:
+                continue
+            ftype = (f.get("type") or "").lower()
+            if ftype == "preview":
+                v_mock.append(pu)
+            elif ftype == "default":
+                v_print.append(pu)
+            else:
+                v_other.append(pu)
         pimg = (v.get("product") or {}).get("image")
+        mockups += v_mock
+        other_files += v_other
+        prints += v_print
         if pimg:
-            imgs.append(pimg)
-        cdn_imgs += imgs
+            catalog.append(pimg)
+        # Per-variant image list mirrors the same preference (mockup first).
+        v_imgs = v_mock + ([pimg] if pimg else []) + v_other + v_print
         variants.append({
             "printful_variant_id": v.get("id"),
             "catalog_variant_id": v.get("variant_id"),
@@ -76,19 +90,17 @@ def _normalize(full: dict) -> dict:
             "size": v.get("size") or v.get("name"),
             "color": v.get("color"),
             "price": price,
-            "images": imgs,
+            "images": list(dict.fromkeys(v_imgs)),
             "available": v.get("availability_status", "active") != "discontinued",
         })
-    # Prefer Printful CDN images; fall back to the (proxied) platform thumbnail.
-    ordered = list(dict.fromkeys(cdn_imgs))
-    thumb = sp.get("thumbnail_url")
-    if thumb:
-        ordered.append(thumb)
-    all_imgs = [_img_url(u) for u in dict.fromkeys(ordered) if u]
+    # Product-level ordering: mockups → catalog shot → other previews → print files.
+    # All from files.cdn.printful.com — we deliberately do NOT fall back to the
+    # WordPress (tonyoga.*) thumbnail, so images never depend on that domain.
+    ordered = list(dict.fromkeys(mockups + catalog + other_files + prints))
     return {
         "printful_product_id": sp.get("id"),
         "title": sp.get("name", "Untitled"),
-        "images": all_imgs[:8],
+        "images": ordered[:8],
         "variants": variants,
         "price": round(min(prices), 2) if prices else 0.0,
         "currency": currency,

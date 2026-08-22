@@ -1,0 +1,23 @@
+{
+  "summary": "Focused re-test of the Printful image bug (mockup vs print-file) + tonyoga.* dependency removal. Backend: 6/6 pytest checks pass (/app/backend/tests/test_iteration49_images.py) — GET /api/products and GET /api/admin/products return 36 printful products, 19 with images, every images[0] starts with https://files.cdn.printful.com/files/ and ends in _preview.png (mockup); zero 'printfile' URLs used as primary; zero image URLs containing tonyoga.com/tonyoga.online anywhere; product detail endpoint returns mockup and no _id; 3 spot-checked mockup URLs return HTTP 200 with content-type image/*; /api/admin/printful/status reports store 16428293. Frontend: /shop grid loads 19 printful mockup images, 0 broken (naturalWidth>0), 0 printfile/tonyoga URLs; White glossy mug detail page shows the mug mockup. Admin -> Shop & Printful: store selector defaults to 'Tonyoga — woocommerce (36 products)', '36 products synced' badge, 'Begin sync' present+enabled, mockup thumbnails render for physical products; bulk-delete regression verified — checkbox selection updates 'Delete selected (1)' -> 'Delete selected (2)' and the button disappears/disables on deselect (no deletion performed).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Public /shop grid", "issues": ["The 17 image-less virtual products (subscriptions/holidays/'Core 40', 'Poster Level 1') render as large empty grey rectangles, which reads as a broken/loading image to users. Suggest a branded placeholder (icon + 'Digital / Membership' label) or moving them into a separate non-image list. Cosmetic only — the empty images list itself is expected per spec."]},
+      {"screen": "Public /shop grid", "issues": ["'Core 40' card shows price '$0' — worth confirming the intended price (not part of the image fix, observation only)."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration49_images.py"],
+  "action_items": ["Optional: add a placeholder visual for the 17 image-less virtual products on /shop and in the admin product rows (currently blank grey boxes).", "Optional: verify 'Core 40' price of $0 is intentional."],
+  "critical_code_review_comments": ["_normalize() bucketing (mockup -> catalog -> other previews -> print files, no WordPress fallback) is correct and verified end-to-end. The now-unused _img_url() tonyoga.com->tonyoga.online rewriter in /app/backend/routers/printful.py should be deleted if no other caller needs it, to prevent the WordPress dependency creeping back."],
+  "updated_files": ["/app/backend/tests/test_iteration49_images.py", "/app/test_reports/iteration_49.json"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None — no products created or deleted; bulk delete was only exercised up to the button state (no delete request issued).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "admin tony@tonyyoga.com / TonyYoga2026! (from /app/memory/test_credentials.md)",
+  "context_for_next_testing_agent": "Image bug is FIXED and verified (backend + UI). Re-run /app/backend/tests/test_iteration49_images.py as a regression guard; it asserts 36 printful products, printful CDN mockup as images[0], and no tonyoga.* URLs. 17 virtual products with empty images are EXPECTED. Do not call /admin/orders/{id}/fulfill?confirm=true (hits real Printful).",
+  "rca_of_the_issue": "Previously the storefront picked whichever preview_url came first (often the Printful print file, type='default' = bare artwork) and fell back to the WordPress thumbnail. _normalize now buckets by file type and orders mockup(preview) -> catalog image -> other previews -> print files, with the tonyoga fallback removed. Verified: all 19 physical products serve *_preview.png mockups from files.cdn.printful.com."
+}

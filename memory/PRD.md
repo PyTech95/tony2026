@@ -303,7 +303,13 @@ User choices: Printful auto-confirm BUT only on LIVE payments (skip in sandbox);
 - **Credit Countdown**: `components/CreditIndicator.jsx` — subtle top-nav pill (gift icon + $amount, links to /shop) in AppShell for logged-in non-staff members with credit>0. Profile gift-card section gains a `profile-credit-apply` "€X is ready — apply it at checkout · Shop →" CTA. VERIFIED (screenshot: nav pill "$675.00").
 - NOTE: new credit UI (nudge/indicator) shows "$" to match PaymentButtons/checkout context; Profile balance shows "€" (store_credit is nominally EUR, applied 1:1 — known cosmetic inconsistency).
 
-## Bulk product delete (2026-08-22)
+## Product image = mockup fix + tonyoga.* removal (2026-08-22)
+- BUG: storefront showed the Printful PRINT-FILE (bare artwork/logo) instead of the product MOCKUP. RCA: `_normalize` collected all `files[].preview_url` in order, so the `type='default'` print file landed at images[0]; also fell back to the dead WordPress thumbnail.
+- FIX (printful.py `_normalize`): bucket images by Printful file type — `type='preview'` (mockup) → `product.image` (catalog CDN) → other previews → `type='default'` print files LAST. Removed the WordPress thumbnail fallback entirely and deleted the dead `_img_url` tonyoga rewriter. All product images now come only from files.cdn.printful.com.
+- Cleaned duplicates: kept single store 16428293 (36 products). 19 physical = CDN mockups; 17 virtual (subscriptions/sessions/holidays) have empty images by design.
+- Shop.jsx: imageless products render a branded "Membership" placeholder (Flower2 icon) instead of a blank grey box.
+- VERIFIED: testing_agent iteration_49 100% (backend + UI) + self-screenshot (19 mockups load, 0 broken, 0 tonyoga refs, 17 placeholders).
+- USER Q: no Printful/domain change needed — images now pull straight from Printful's CDN; tonyoga.com/tonyoga.online are no longer referenced anywhere.
 - POST `/api/admin/products/bulk-delete` {ids:[...]} (admin) → delete_many, returns {deleted}; 400 on empty ids. (content.py)
 - `ProductsPane.jsx`: each product row has a checkbox (`product-checkbox-<id>`), a "Select all"/"Deselect all" toggle (`products-select-all`), and a "Delete selected (N)" button (`products-bulk-delete`) with a window.confirm. Selected rows highlight amber. VERIFIED (curl + screenshot).
 
