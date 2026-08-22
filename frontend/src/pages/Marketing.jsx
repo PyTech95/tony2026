@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Play, Download, Menu, X, Check, Compass, Wind, Moon, GraduationCap, Flame, User } from "lucide-react";
+import { ArrowRight, Play, Download, Menu, X, Check, Compass, Wind, Moon, GraduationCap, Flame, User, Flower2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
 import InstagramReels from "@/components/InstagramReels";
@@ -350,6 +350,44 @@ function Footer() {
   );
 }
 
+function BestSellers() {
+  const [items, setItems] = useState([]);
+  useEffect(() => { api.get("/products/best-sellers?limit=8").then(({ data }) => setItems(data || [])).catch(() => setItems([])); }, []);
+  if (!items.length) return null;
+  return (
+    <section className="px-5 py-14 sm:py-16" data-testid="home-best-sellers">
+      <div className="mx-auto max-w-6xl">
+        <div className="flex items-end justify-between gap-3 mb-6">
+          <div>
+            <div className="eyebrow">The shop</div>
+            <h2 className="serif text-3xl sm:text-4xl mt-1">Best sellers</h2>
+          </div>
+          <Link to="/shop" data-testid="home-best-sellers-all" className="text-sm font-semibold text-[#B25A45] hover:opacity-70 shrink-0">Shop all →</Link>
+        </div>
+        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 snap-x">
+          {items.map((p) => (
+            <Link key={p.id} to={`/shop/${p.id}`} data-testid={`best-seller-${p.id}`} className="shrink-0 w-44 sm:w-52 snap-start group">
+              <div className="relative aspect-square rounded-2xl overflow-hidden bg-[#F2F2EC]">
+                {p.compare_at_price > p.price && (
+                  <span className="absolute top-2 right-2 z-10 rounded-full bg-[#B25A45] px-2 py-0.5 text-[9px] uppercase tracking-widest font-bold text-white">Sale</span>
+                )}
+                {p.images?.[0]
+                  ? <img src={p.images[0]} alt="" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  : <div className="h-full w-full flex items-center justify-center"><Flower2 className="h-8 w-8 text-[#B25A45]/60" /></div>}
+              </div>
+              <div className="mt-2 text-[13px] font-semibold text-[#1C221F] leading-tight line-clamp-2">{p.title}</div>
+              <div className="mt-0.5 flex items-baseline gap-1.5">
+                <span className="text-sm text-[#B25A45] font-semibold">${p.price}</span>
+                {p.compare_at_price > p.price && <span className="text-xs text-[#9AA096] line-through">${p.compare_at_price}</span>}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function QuizBanner() {
   return (
     <section className="px-5 py-14 sm:py-20" data-testid="home-quiz-banner">
@@ -470,6 +508,7 @@ export default function Marketing() {
       <ValueProps />
       <Programs />
       <QuizBanner />
+      <BestSellers />
       <DiscoverStrip />
       <ComingSoon />
       <Retreats />

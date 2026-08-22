@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { RefreshCw, Trash2, Eye, EyeOff, Save, ShoppingBag, Plus, CheckSquare, Square, Star } from "lucide-react";
+import { RefreshCw, Trash2, Eye, EyeOff, Save, ShoppingBag, Plus, CheckSquare, Square, Star, GripVertical } from "lucide-react";
 import { api } from "@/lib/api";
 import Spinner from "@/components/Spinner";
 
@@ -12,6 +12,7 @@ function ProductsPane() {
   const [storeId, setStoreId] = useState("");
   const [selected, setSelected] = useState(() => new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [dragIdx, setDragIdx] = useState(null);
   const ic = "w-full rounded-lg border border-[#E5E6DF] bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B25A45]";
 
   const load = () => api.get("/admin/products").then(({ data }) => { setRows(data); setSelected(new Set()); }).catch(() => setRows([]));
@@ -44,6 +45,7 @@ function ProductsPane() {
       await api.patch(`/admin/products/${p.id}`, {
         title: p.title, description: p.description, category: p.category,
         price: Number(p.price), currency: p.currency, stock_qty: Number(p.stock_qty),
+        compare_at_price: p.compare_at_price === "" || p.compare_at_price == null ? 0 : Number(p.compare_at_price),
         visible: p.visible !== false,
       });
       toast.success("Saved");
@@ -63,6 +65,20 @@ function ProductsPane() {
       await api.patch(`/admin/products/${p.id}`, { featured: v });
       toast.success(v ? "Pinned to top of shop" : "Unpinned");
     } catch { toast.error("Failed"); set(p.id, "featured", !v); }
+  };
+
+  const featuredList = (rows || []).filter((p) => p.featured)
+    .sort((a, b) => ((a.featured_rank ?? 999) - (b.featured_rank ?? 999)));
+  const onFeaturedDrop = async (toIdx) => {
+    if (dragIdx == null || dragIdx === toIdx) { setDragIdx(null); return; }
+    const arr = [...featuredList];
+    const [moved] = arr.splice(dragIdx, 1);
+    arr.splice(toIdx, 0, moved);
+    const ids = arr.map((p) => p.id);
+    setRows((rs) => rs.map((p) => { const i = ids.indexOf(p.id); return i >= 0 ? { ...p, featured_rank: i } : p; }));
+    setDragIdx(null);
+    try { await api.post("/admin/products/reorder-featured", { ids }); toast.success("Order saved"); }
+    catch { toast.error("Reorder failed"); }
   };
 
   const remove = async (p) => {
@@ -205,6 +221,34 @@ function ProductsPane() {
         )}
       </div>
 
+      {featuredList.length > 0 && (
+        <div className="rounded-2xl bg-white border border-[#E5E6DF] p-4" data-testid="featured-order-panel">
+          <div className="eyebrow flex items-center gap-2"><Star className="h-3.5 w-3.5 fill-[#B25A45] text-[#B25A45]" /> Featured order — drag to arrange</div>
+          <p className="text-xs text-[#6B7269] mt-1 mb-3">These show first in the shop, in this order.</p>
+          <ul className="space-y-2">
+            {featuredList.map((p, idx) => (
+              <li
+                key={p.id}
+                draggable
+                onDragStart={() => setDragIdx(idx)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => onFeaturedDrop(idx)}
+                data-testid={`featured-item-${p.id}`}
+                className={`flex items-center gap-3 rounded-xl border px-3 py-2 cursor-grab active:cursor-grabbing transition-colors ${dragIdx === idx ? "border-[#B25A45] bg-[#FBF6EC]" : "border-[#E5E6DF] bg-[#FAFAF7]"}`}
+              >
+                <GripVertical className="h-4 w-4 text-[#B7BEB4] shrink-0" />
+                <span className="text-[11px] font-bold text-[#9AA096] w-5">{idx + 1}</span>
+                <div className="h-9 w-9 rounded-md bg-[#F2F2EC] overflow-hidden shrink-0">
+                  {p.images?.[0] && <img src={p.images[0]} alt="" className="h-full w-full object-cover" />}
+                </div>
+                <span className="text-sm text-[#1C221F] truncate flex-1">{p.title}</span>
+                <button onClick={() => toggleFeatured(p)} className="text-[#B25A45] hover:opacity-70 text-xs font-semibold" data-testid={`featured-remove-${p.id}`}>Remove</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="eyebrow">All products {rows?.length ? `(${rows.length})` : ""}</div>
         {rows?.length > 0 && (
@@ -264,8 +308,9 @@ function ProductsPane() {
                     <input className={ic} value={p.title || ""} onChange={(e) => set(p.id, "title", e.target.value)} data-testid={`product-title-${p.id}`} />
                     {p.source === "printful" && <span className="shrink-0 text-[9px] uppercase tracking-widest font-bold bg-[#F7ECE8] text-[#B25A45] rounded-full px-2 py-1">Printful</span>}
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-4 gap-2">
                     <input className={ic} type="number" value={p.price ?? 0} onChange={(e) => set(p.id, "price", e.target.value)} placeholder="Price" data-testid={`product-price-${p.id}`} />
+                    <input className={ic} type="number" value={p.compare_at_price ?? ""} onChange={(e) => set(p.id, "compare_at_price", e.target.value)} placeholder="Was (sale)" data-testid={`product-compare-${p.id}`} />
                     <input className={ic} value={p.category || ""} onChange={(e) => set(p.id, "category", e.target.value)} placeholder="Category" />
                     <input className={ic} type="number" value={p.stock_qty ?? 0} onChange={(e) => set(p.id, "stock_qty", e.target.value)} placeholder="Stock" />
                   </div>

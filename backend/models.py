@@ -258,6 +258,8 @@ class ProductUpdate(BaseModel):
     images: Optional[List[str]] = None
     visible: Optional[bool] = None
     featured: Optional[bool] = None
+    featured_rank: Optional[int] = None
+    compare_at_price: Optional[float] = None
     external_amazon_link: Optional[str] = None
 
 class AsanaCreate(BaseModel):

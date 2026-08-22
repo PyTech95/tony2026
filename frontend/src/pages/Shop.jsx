@@ -54,6 +54,11 @@ export default function Shop() {
                         <Star className="h-3 w-3 fill-[#E0A38F]" /> Featured
                       </span>
                     )}
+                    {p.compare_at_price > p.price && (
+                      <span className="absolute top-2 right-2 z-10 rounded-full bg-[#B25A45] px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold text-white" data-testid={`shop-sale-${p.id}`}>
+                        Sale
+                      </span>
+                    )}
                     {p.images?.[0] ? (
                       <img src={p.images[0]} alt="" className="h-full w-full object-cover" />
                     ) : (
@@ -65,7 +70,10 @@ export default function Shop() {
                   </div>
                   <div className="p-3">
                     <div className="text-[13px] font-semibold leading-tight clamp-2">{p.title}</div>
-                    <div className="mt-1 text-sm text-[#B25A45] font-semibold">${p.price}</div>
+                    <div className="mt-1 flex items-baseline gap-1.5">
+                      <span className="text-sm text-[#B25A45] font-semibold">${p.price}</span>
+                      {p.compare_at_price > p.price && <span className="text-xs text-[#9AA096] line-through">${p.compare_at_price}</span>}
+                    </div>
                   </div>
                 </Link>
               </li>

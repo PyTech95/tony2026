@@ -540,6 +540,16 @@ async def bulk_delete_products(request: Request):
     return {"ok": True, "deleted": res.deleted_count}
 
 
+@api.post("/admin/products/reorder-featured")
+async def reorder_featured(request: Request):
+    await require_role(request, ["admin"])
+    body = await request.json()
+    ids = [str(i) for i in (body or {}).get("ids", []) if i]
+    for i, pid in enumerate(ids):
+        await db.products.update_one({"id": pid}, {"$set": {"featured": True, "featured_rank": i}})
+    return {"ok": True, "count": len(ids)}
+
+
 @api.post("/admin/products/bulk-visibility")
 async def bulk_visibility_products(request: Request):
     await require_role(request, ["admin"])
@@ -562,8 +572,40 @@ async def admin_list_products(request: Request):
 async def list_products(category: Optional[str] = None):
     query: Dict[str, Any] = {"visible": {"$ne": False}}
     if category: query["category"] = category
-    # Featured/pinned products first, then newest.
-    return await db.products.find(query, {"_id": 0}).sort([("featured", -1), ("created_at", -1)]).to_list(500)
+    # Featured/pinned first (by manual rank), then newest.
+    return await db.products.find(query, {"_id": 0}).sort(
+        [("featured", -1), ("featured_rank", 1), ("created_at", -1)]
+    ).to_list(500)
+
+
+@api.get("/products/best-sellers")
+async def best_sellers(limit: int = 8):
+    """Top-purchased visible products; falls back to featured/newest when there
+    aren't enough sales yet so the homepage strip is never empty."""
+    pipeline = [
+        {"$match": {"status": "paid"}},
+        {"$unwind": "$items"},
+        {"$group": {"_id": "$items.product_id", "sold": {"$sum": {"$ifNull": ["$items.quantity", 1]}}}},
+        {"$sort": {"sold": -1}},
+        {"$limit": limit * 3},
+    ]
+    rows = await db.orders.aggregate(pipeline).to_list(60)
+    prods = {p["id"]: p for p in await db.products.find(
+        {"visible": {"$ne": False}}, {"_id": 0}).sort([("featured", -1), ("featured_rank", 1), ("created_at", -1)]).to_list(500)}
+    out, seen = [], set()
+    for r in rows:
+        p = prods.get(r["_id"])
+        if p:
+            out.append({**p, "sold": r["sold"]}); seen.add(p["id"])
+        if len(out) >= limit:
+            break
+    if len(out) < limit:
+        for pid, p in prods.items():
+            if pid not in seen:
+                out.append({**p, "sold": 0}); seen.add(pid)
+            if len(out) >= limit:
+                break
+    return out
 
 
 @api.get("/products/{product_id}/bundle")
