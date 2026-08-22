@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Play, Download, Menu, X, Check, Compass, Wind, Moon, GraduationCap, Flame, User, Flower2, BookOpen, ExternalLink } from "lucide-react";
+import { ArrowRight, Play, Download, Menu, X, Check, Compass, Wind, Moon, GraduationCap, Flame, User, Flower2, BookOpen, ExternalLink, Star, Truck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
 import InstagramReels from "@/components/InstagramReels";
@@ -390,37 +390,73 @@ function BestSellers() {
 
 function BooksSection() {
   const [items, setItems] = useState([]);
-  useEffect(() => { api.get("/products?category=books").then(({ data }) => setItems((data || []).slice(0, 8))).catch(() => setItems([])); }, []);
+  useEffect(() => { api.get("/products?category=books").then(({ data }) => setItems((data || []).slice(0, 4))).catch(() => setItems([])); }, []);
   if (!items.length) return null;
   return (
-    <section className="px-5 py-14 sm:py-20 bg-[#1C221F] text-[#FAFAF7]" data-testid="home-books">
-      <div className="mx-auto max-w-6xl">
-        <div className="flex items-end justify-between gap-3 mb-8">
-          <div>
-            <div className="inline-flex items-center gap-2 eyebrow !text-[#E0A38F]"><BookOpen className="h-3.5 w-3.5" /> The writing</div>
-            <h2 className="serif text-3xl sm:text-4xl mt-1.5">Books &amp; reading</h2>
-            <p className="text-[15px] text-[#B7BEB4] mt-2 max-w-md">Five decades on the mat, set down in print and digital. Read the method behind the Core Series.</p>
-          </div>
-          <Link to="/shop" data-testid="home-books-all" className="text-sm font-semibold text-[#E0A38F] hover:opacity-70 shrink-0">All books →</Link>
+    <section className="relative overflow-hidden px-5 py-16 sm:py-24 bg-[#141815] text-[#FAFAF7]" data-testid="home-books">
+      {/* warm glow */}
+      <div className="pointer-events-none absolute -top-24 right-0 h-[420px] w-[420px] rounded-full bg-[#B25A45]/20 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-0 left-1/4 h-[300px] w-[300px] rounded-full bg-[#839682]/10 blur-[120px]" />
+      <div className="relative mx-auto max-w-5xl">
+        <div className="text-center max-w-2xl mx-auto mb-12 sm:mb-16">
+          <div className="inline-flex items-center gap-2 eyebrow !text-[#E0A38F]"><BookOpen className="h-3.5 w-3.5" /> Written by Tony Sanchez</div>
+          <h2 className="serif text-3xl sm:text-5xl mt-3 leading-[1.05]">Read the method</h2>
+          <p className="text-[15px] sm:text-base text-[#B7BEB4] mt-4">
+            Five decades on the mat, distilled into practice manuals used by students and teachers worldwide.
+            Take the work off the screen and onto your shelf.
+          </p>
         </div>
-        <div className="flex gap-5 overflow-x-auto no-scrollbar pb-2 snap-x">
-          {items.map((p) => (
-            <Link key={p.id} to={`/shop/${p.id}`} data-testid={`home-book-${p.id}`} className="shrink-0 w-40 sm:w-48 snap-start group">
-              <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-white/5 shadow-lg shadow-black/30 ring-1 ring-white/10">
-                {p.type === "ebook" && (
-                  <span className="absolute top-2 left-2 z-10 rounded-full bg-[#B25A45] px-2 py-0.5 text-[9px] uppercase tracking-widest font-bold text-white">eBook</span>
-                )}
-                {p.images?.[0]
-                  ? <img src={p.images[0]} alt={p.title} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  : <div className="h-full w-full flex items-center justify-center"><BookOpen className="h-8 w-8 text-[#E0A38F]/60" /></div>}
+
+        <div className="grid gap-6 sm:gap-8 sm:grid-cols-2 max-w-3xl mx-auto">
+          {items.map((p, i) => {
+            const buy = p.external_amazon_link || `/shop/${p.id}`;
+            return (
+              <div key={p.id} data-testid={`home-book-${p.id}`} className="group relative rounded-3xl bg-white/[0.04] ring-1 ring-white/10 p-5 sm:p-6 backdrop-blur-sm transition-all duration-300 hover:bg-white/[0.07] hover:ring-white/20">
+                <div className="flex gap-5">
+                  <Link to={`/shop/${p.id}`} className="shrink-0" data-testid={`home-book-cover-${p.id}`}>
+                    <div className="relative w-28 sm:w-32">
+                      {/* shelf shadow */}
+                      <div className="absolute -bottom-2 left-1/2 h-4 w-[85%] -translate-x-1/2 rounded-full bg-black/50 blur-md" />
+                      <div className="relative aspect-[2/3] rounded-lg overflow-hidden shadow-2xl shadow-black/60 ring-1 ring-white/10 transition-transform duration-500 group-hover:-translate-y-1 group-hover:-rotate-1">
+                        {p.type === "ebook" && (
+                          <span className="absolute top-1.5 left-1.5 z-10 rounded-full bg-[#B25A45] px-2 py-0.5 text-[8px] uppercase tracking-widest font-bold text-white">eBook</span>
+                        )}
+                        {p.images?.[0]
+                          ? <img src={p.images[0]} alt={p.title} className="h-full w-full object-cover" loading="lazy" />
+                          : <div className="h-full w-full flex items-center justify-center bg-white/5"><BookOpen className="h-8 w-8 text-[#E0A38F]/60" /></div>}
+                      </div>
+                    </div>
+                  </Link>
+
+                  <div className="min-w-0 flex-1 flex flex-col">
+                    <div className="flex items-center gap-1 text-[#E7B84B]">
+                      {[0, 1, 2, 3, 4].map((s) => <Star key={s} className="h-3 w-3 fill-current" />)}
+                      <span className="ml-1 text-[10px] text-[#8A928A]">Reader favourite</span>
+                    </div>
+                    <Link to={`/shop/${p.id}`} className="serif text-lg sm:text-xl leading-tight mt-1.5 hover:text-[#E0A38F] transition-colors">{p.title}</Link>
+                    {p.author && <div className="text-[11px] text-[#8A928A] mt-0.5">by {p.author}</div>}
+                    <p className="text-[12px] text-[#B7BEB4] mt-2 line-clamp-3 leading-relaxed">{p.description}</p>
+                    <div className="mt-auto pt-4 flex items-center gap-3">
+                      {p.price > 0 && <span className="serif text-xl text-[#FAFAF7]">€{p.price}</span>}
+                      <a
+                        href={buy} target={p.external_amazon_link ? "_blank" : undefined} rel="noopener noreferrer"
+                        data-testid={`home-book-buy-${p.id}`}
+                        className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-[#E0A38F] px-4 py-2 text-[12px] font-bold text-[#141815] hover:bg-white transition-colors"
+                      >
+                        {p.type === "ebook" ? "Get the eBook" : "Buy on Amazon"} <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="mt-3 text-[13px] font-semibold leading-tight line-clamp-2">{p.title}</div>
-              {p.author && <div className="text-[11px] text-[#8A928A] mt-0.5">by {p.author}</div>}
-              <div className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold text-[#E0A38F]">
-                {p.type === "ebook" ? <>Get the eBook · €{p.price}</> : <>Buy on Amazon <ExternalLink className="h-3 w-3" /></>}
-              </div>
-            </Link>
-          ))}
+            );
+          })}
+        </div>
+
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[11px] text-[#8A928A]">
+          <span className="inline-flex items-center gap-1.5"><Truck className="h-3.5 w-3.5 text-[#839682]" /> Ships worldwide via Amazon</span>
+          <span className="inline-flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5 text-[#839682]" /> Kindle &amp; paperback editions</span>
+          <Link to="/shop" data-testid="home-books-all" className="inline-flex items-center gap-1 font-semibold text-[#E0A38F] hover:text-white transition-colors">Browse the shop <ArrowRight className="h-3 w-3" /></Link>
         </div>
       </div>
     </section>

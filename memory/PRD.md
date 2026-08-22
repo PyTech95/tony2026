@@ -394,3 +394,12 @@ User choices: Printful auto-confirm BUT only on LIVE payments (skip in sandbox);
 - Go-Live payments (LIVE Stripe/PayPal keys in Admin → Settings).
 - Real book data: replace the 3 demo books with Tony's actual titles/Amazon links/covers/eBook PDFs (+ optional Amazon Associates affiliate tag) in Admin → Shop.
 - social_whatsapp unset → WhatsApp CTA hidden until configured in Admin → Settings.
+
+## Real books + premium homepage Books section (2026-06)
+- Replaced the 3 demo books with Tony Sanchez's REAL Amazon titles (DB updated live + seed.py updated for fresh deploys):
+  1. "Genesis of Yoga — Core 26+ Level 1" (type book, €9.99, Amazon Kindle) → https://www.amazon.com/Genesis-Yoga-Core-Level-Systems-ebook/dp/B0C3YSPHCB
+  2. "84 Asanas — Level I: Practice Manual" (type book, price 0 → shows "On Amazon", paperback) → https://www.amazon.com/84-Asanas-Level-Practice-Manual/dp/1463683308
+- Amazon cover images re-hosted on our object storage (relative /api/files/... paths, same-origin safe) to avoid hotlink breakage; seed.py uses Amazon m.media-amazon CDN URLs for portability.
+- Price-0 handling: books with price 0 show "On Amazon" instead of "€0" (ProductDetail big price + Shop card).
+- Homepage BooksSection (Marketing.jsx) REDESIGNED into a premium conversion showcase: dark #141815 bg with warm glow, centered "Read the method / Written by Tony Sanchez" header, 2-up book cards (cover with shelf shadow + hover lift/tilt, 5-star "Reader favourite", title/author/description, price, bold "Buy on Amazon" CTA opening Amazon in new tab), and a trust row (Ships worldwide via Amazon · Kindle & paperback · Browse the shop). Verified desktop + mobile; covers load (naturalWidth 750).
+- NOTE: both current books link to Amazon (type "book"). The eBook-sold-here capability + Profile "My library" download remain intact for any future digital title Tony uploads.

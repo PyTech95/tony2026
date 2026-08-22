@@ -111,7 +111,9 @@ export default function ProductDetail() {
 
         <div className="flex items-baseline justify-between">
           <div className="flex items-baseline gap-3">
-            <div className="serif text-4xl">€{p.price}</div>
+            {p.price > 0
+              ? <div className="serif text-4xl">€{p.price}</div>
+              : <div className="serif text-2xl text-[#B25A45]">On Amazon</div>}
             {p.compare_at_price > p.price && (
               <>
                 <div className="text-xl text-[#9AA096] line-through" data-testid="product-compare-price">€{p.compare_at_price}</div>

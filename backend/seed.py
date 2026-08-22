@@ -321,28 +321,21 @@ async def seed():
              "rating": 4.7, "created_at": now_utc().isoformat()},
         ])
 
-    # --- Books & reading (idempotent) — physical (Amazon) + digital eBooks sold here ---
+    # --- Books & reading (idempotent) — Tony Sanchez's real titles on Amazon ---
     _demo_books = [
-        {"title": "The Core 26 & 40 — Original Hot Yoga",
-         "description": "Tony Sanchez's definitive guide to the original 26- and 40-posture hot yoga series, broken down posture by posture with the alignment and breath detail refined over five decades on the mat.",
-         "type": "book", "category": "books", "price": 24.0, "currency": "eur", "stock_qty": 0,
+        {"title": "Genesis of Yoga — Core 26+ Level 1",
+         "description": "Tony Sanchez's foundational Core 26+ Level 1 system — the complete beginner's method to the original hot yoga series, posture by posture, from the breath to the final savasana. The perfect companion to the Core 26+ course. Available on Amazon Kindle.",
+         "type": "book", "category": "books", "price": 9.99, "currency": "eur", "stock_qty": 0,
          "author": "Tony Sanchez",
-         "images": ["https://static.prod-images.emergentagent.com/jobs/c262e325-7acf-4b77-b682-08b41f67ffc3/images/e6a8b92e15808ca1efffbf720dcd0270449d853a875284e2bf034403f07187cd.jpeg"],
-         "external_amazon_link": "https://www.amazon.com/s?k=Tony+Sanchez+hot+yoga",
+         "images": ["https://m.media-amazon.com/images/I/71jc8Yuzk7L._SL1200_.jpg"],
+         "external_amazon_link": "https://www.amazon.com/Genesis-Yoga-Core-Level-Systems-ebook/dp/B0C3YSPHCB",
          "featured": True, "featured_rank": 0},
-        {"title": "The Advanced 84 — Postures of Mastery",
-         "description": "The advanced 84-posture series for dedicated practitioners and teachers — a lifetime of practice, documented with precision.",
-         "type": "book", "category": "books", "price": 32.0, "currency": "eur", "stock_qty": 0,
-         "author": "Tony Sanchez",
-         "images": ["https://static.prod-images.emergentagent.com/jobs/c262e325-7acf-4b77-b682-08b41f67ffc3/images/4d39644e1447f2c39495f768846d250fa3ee080d07716056cc4ff1cd37b9a2e1.jpeg"],
-         "external_amazon_link": "https://www.amazon.com/s?k=Tony+Sanchez+advanced+yoga"},
-        {"title": "Pranayama & Meditation — Digital Guide",
-         "description": "A downloadable guide to the breath: pranayama techniques and seated meditations to deepen any practice. Instant PDF download — also available in print on Amazon.",
-         "type": "ebook", "category": "books", "price": 14.99, "currency": "eur", "stock_qty": 0,
-         "author": "Tony Sanchez",
-         "images": ["https://static.prod-images.emergentagent.com/jobs/c262e325-7acf-4b77-b682-08b41f67ffc3/images/8f5fc2e42965c06192be46f4839b96c28d93de6506d2bec363ca1f7054a2bd4f.jpeg"],
-         "ebook_file_url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-         "external_amazon_link": "https://www.amazon.com/s?k=Tony+Sanchez+pranayama+meditation",
+        {"title": "84 Asanas — Level I: Practice Manual",
+         "description": "The definitive Level I practice manual for the advanced 84-asana series: detailed alignment, sequencing and technique from Tony Sanchez with Sandy Wong-Sanchez, Kurt Anderson and Baeta Priolo. A reference for dedicated practitioners and teachers. Paperback on Amazon.",
+         "type": "book", "category": "books", "price": 0, "currency": "eur", "stock_qty": 0,
+         "author": "Tony Sanchez & senior teachers",
+         "images": ["https://m.media-amazon.com/images/I/814LOKEjiEL._SL1200_.jpg"],
+         "external_amazon_link": "https://www.amazon.com/84-Asanas-Level-Practice-Manual/dp/1463683308",
          "featured": True, "featured_rank": 1},
     ]
     for b in _demo_books:
