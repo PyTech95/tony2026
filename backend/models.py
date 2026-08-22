@@ -247,10 +247,13 @@ class ProductCreate(BaseModel):
     images: List[str] = []
     variants: Optional[List[Dict[str, Any]]] = None
     external_amazon_link: Optional[str] = None
+    ebook_file_url: Optional[str] = None      # digital download delivered after purchase (type == "ebook")
+    author: Optional[str] = None              # book author line
 
 class ProductUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
+    type: Optional[str] = None                # physical | book | ebook
     category: Optional[str] = None
     price: Optional[float] = None
     currency: Optional[str] = None
@@ -261,6 +264,8 @@ class ProductUpdate(BaseModel):
     featured_rank: Optional[int] = None
     compare_at_price: Optional[float] = None
     external_amazon_link: Optional[str] = None
+    ebook_file_url: Optional[str] = None
+    author: Optional[str] = None
 
 class AsanaCreate(BaseModel):
     name: str                       # English / common name

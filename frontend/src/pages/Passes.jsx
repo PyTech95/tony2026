@@ -67,8 +67,8 @@ export default function Passes() {
                     <div className="eyebrow">{c.credits} credit{c.credits === 1 ? "" : "s"}</div>
                     <div className="serif text-2xl mt-1">{c.title}</div>
                     <div className="mt-2 flex items-baseline gap-1">
-                      <span className="serif text-4xl">${Math.round(c.price)}</span>
-                      {isPack && <span className="text-xs text-[#B25A45] font-semibold ml-2">save $11</span>}
+                      <span className="serif text-4xl">€{Math.round(c.price)}</span>
+                      {isPack && <span className="text-xs text-[#B25A45] font-semibold ml-2">save €11</span>}
                     </div>
                     <p className="text-sm text-[#545E56] mt-3 leading-relaxed">{c.description}</p>
                     <div className="mt-5">

@@ -76,7 +76,7 @@ export default function Cart() {
                   <div className="min-w-0 flex-1">
                     <div className="text-[14px] font-semibold clamp-2 leading-tight">{it.title}</div>
                     {it.variant && <div className="text-xs text-[#6B7269] mt-0.5">Size {it.variant}</div>}
-                    <div className="text-sm text-[#B25A45] font-semibold mt-1">${it.price}</div>
+                    <div className="text-sm text-[#B25A45] font-semibold mt-1">€{it.price}</div>
                     <div className="mt-2 flex items-center gap-2">
                       <button onClick={() => updateQty(it.key, it.quantity - 1)} data-testid={`cart-dec-${it.key}`} className="h-7 w-7 rounded-full border border-[#E5E6DF] hover:border-[#B25A45] flex items-center justify-center">
                         <Minus className="h-3 w-3" />

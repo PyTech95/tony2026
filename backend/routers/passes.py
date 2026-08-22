@@ -7,8 +7,8 @@ from core import api, db, now_utc, gen_id, get_current_user
 
 # Simple catalog — could later live in DB, but static for MVP
 PASS_CATALOG: Dict[str, dict] = {
-    "drop_in": {"id": "drop_in", "title": "Drop-in class", "credits": 1, "price": 22.0, "currency": "usd", "description": "One class credit. No membership required."},
-    "class_pack": {"id": "class_pack", "title": "5-class pack", "credits": 5, "price": 99.0, "currency": "usd", "description": "Five class credits · save $11 vs. drop-ins. Never expires."},
+    "drop_in": {"id": "drop_in", "title": "Drop-in class", "credits": 1, "price": 22.0, "currency": "eur", "description": "One class credit. No membership required."},
+    "class_pack": {"id": "class_pack", "title": "5-class pack", "credits": 5, "price": 99.0, "currency": "eur", "description": "Five class credits · save €11 vs. drop-ins. Never expires."},
 }
 
 

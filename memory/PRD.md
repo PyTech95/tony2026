@@ -370,3 +370,27 @@ User choices: Printful auto-confirm BUT only on LIVE payments (skip in sandbox);
 - RESPONSIVE AUDIT (390px): swept 17 public routes (/, shop, programs, schedule, memberships, passes, discover, meditations, asanas, leaderboard, broadcasts, find-your-path, cart, login, register, workshops, news) + all 16 admin panes — ALL 0px horizontal overflow. Home/shop/programs/product-detail/program-detail/admin visually verified clean on mobile.
 - DEPLOYMENT READINESS: deployment_agent PASS — no hardcoded secrets/URLs, CORS `*` ok, ports ok, /api prefix + /api/health, idempotent non-destructive seed. No code changes required to deploy.
 - STILL PENDING (unchanged): (1) Dead demo video — needs user's real Core 26/40 YouTube link (set via Admin → Courses → Demo/intro video); (2) Go-Live payments — user pastes LIVE Stripe/PayPal keys in Admin → Settings (auto-fulfill guard keeps Printful in draft/test until payments_live).
+
+## Books offering + Advanced Voice Assistant (2026-06)
+### Books & eBooks (hybrid: Amazon print + digital sold here)
+- Product model gained `type` ('physical'|'book'|'ebook'), `ebook_file_url`, `author` (external_amazon_link already existed). Seeded 3 idempotent demo books with generated on-brand covers: 'The Core 26 & 40' + 'The Advanced 84' (type book, Amazon-only), 'Pranayama & Meditation — Digital Guide' (type ebook €14.99 + also print on Amazon).
+- ProductDetail.jsx is type-aware: physical → cart/qty/stock; book → price+author+primary 'Buy on Amazon' (no cart); ebook → 'Instant download' badge + PaymentButtons(item_type product, no shipping) when logged in / 'Sign in to get the eBook' when out, + secondary 'Prefer print? Buy on Amazon'.
+- eBook delivery: orders.py create_order bypasses stock for ebooks; payments _fulfill_payment skips stock decrement for ebooks; NEW GET /api/me/downloads returns eBooks from the user's PAID orders (purchase-gated). Profile.jsx 'My library' lists them with Download buttons. Verified end-to-end via credit-only purchase → download appears.
+- Homepage: dark 'Books & reading' section (Marketing.jsx BooksSection, data-testid home-books) after Best sellers. Shop shows Books filter pill + Book/eBook badges + author.
+- Admin ProductsPane: 'Book & digital options' panel (appears when category=books or type book/ebook) — cover-image upload/remove (product-image-upload-<id>), type select, author, Amazon link, eBook file URL + upload. save() now persists images/type/author/external_amazon_link/ebook_file_url. uploads.py now also accepts PDF/EPUB (50MB) under a 'books/' folder.
+
+### Advanced Voice Assistant (hands-free, voice-first)
+- AssistantWidget.jsx rewritten: auto-opens once/session (unless dismissed), prominent 'Talk to Tony's assistant' button. Tapping it (the required autoplay gesture) starts a CONTINUOUS hands-free loop: voice greeting (OpenAI TTS) → auto-listen with Web-Audio VAD (records until ~1.3s silence, 15s cap, 7s no-speech giveup) → Whisper STT + LLM reply → spoken reply → listen again. Stops (hangs up) when the visitor says a short 'no/bye/stop/nothing', on silence, or via the hang-up button. Text input remains as fallback (also spoken back once audio is unlocked). Orb/status UI (assistant-orb/assistant-status/assistant-voice-start/assistant-voice-stop). NOTE: real mic loop can't be automated in the test harness — architecture verified, endpoints verified working.
+- Backend assistant.py: PERSONA now spoken-style (1-3 sentences, ends with a question, graceful goodbye, WhatsApp only if asked). _catalog_text ENRICHED with programs, memberships (i18n plan names resolved via tier map), class passes, retreats, meditation count, and books — with a 2-decimal price formatter (fixed eBook being quoted €15 → now €14.99).
+
+### Currency €-everywhere (finished)
+- Fixed remaining hardcoded '$': Cart line-item price, Passes price + 'save €11', and backend PASS_CATALOG description/currency (usd→eur), seed.py fallback products usd→eur, admin StatsPane revenue + recent payments, OrdersPane/Wishlist/FindYourPath defaults.
+
+### Testing
+- iteration_50.json (books): backend 100%, frontend 100%. iteration_51.json (admin book edit + assistant + currency): frontend 100%, backend 11/12 then the 1 fail (rounded eBook price) FIXED + re-verified (€14.99, readable membership names). deployment_agent: PASS.
+
+### Still pending (needs user)
+- Dead demo video (real Core 26/40 YouTube link via Admin → Courses).
+- Go-Live payments (LIVE Stripe/PayPal keys in Admin → Settings).
+- Real book data: replace the 3 demo books with Tony's actual titles/Amazon links/covers/eBook PDFs (+ optional Amazon Associates affiliate tag) in Admin → Shop.
+- social_whatsapp unset → WhatsApp CTA hidden until configured in Admin → Settings.

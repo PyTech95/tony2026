@@ -22,6 +22,12 @@ MIME_TYPES = {
     "gif": "image/gif", "webp": "image/webp",
 }
 
+DOC_MIME_TYPES = {
+    "pdf": "application/pdf",
+    "epub": "application/epub+zip",
+}
+MAX_DOC_BYTES = int(os.environ.get("MAX_DOC_BYTES", str(50 * 1024 * 1024)))  # 50 MB for eBooks
+
 _storage_key = None
 
 
@@ -69,13 +75,16 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
     """Admin uploads an image; returns a public URL under /api/files/{path}."""
     await require_role(request, ["admin"])
     ext = (file.filename.rsplit(".", 1)[-1] if "." in (file.filename or "") else "bin").lower()
-    if ext not in MIME_TYPES:
-        raise HTTPException(400, "Only image files (jpg, png, gif, webp) are allowed.")
-    content_type = MIME_TYPES[ext]
-    path = f"{APP_NAME}/retreats/{uuid.uuid4()}.{ext}"
+    is_doc = ext in DOC_MIME_TYPES
+    if not is_doc and ext not in MIME_TYPES:
+        raise HTTPException(400, "Only image (jpg, png, gif, webp) or document (pdf, epub) files are allowed.")
+    content_type = DOC_MIME_TYPES[ext] if is_doc else MIME_TYPES[ext]
+    folder = "books" if is_doc else "retreats"
+    path = f"{APP_NAME}/{folder}/{uuid.uuid4()}.{ext}"
     data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, f"Image too large — max {MAX_UPLOAD_BYTES // (1024*1024)} MB.")
+    cap = MAX_DOC_BYTES if is_doc else MAX_UPLOAD_BYTES
+    if len(data) > cap:
+        raise HTTPException(413, f"File too large — max {cap // (1024*1024)} MB.")
     try:
         result = await run_in_threadpool(_put_object, path, data, content_type)
     except Exception as e:

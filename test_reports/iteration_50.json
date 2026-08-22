@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 50 — validated the new BOOKS offering end-to-end. Backend: 16/16 pytest cases pass (/api/products?category=books returns the 3 seeded EUR books with correct type/author/amazon/ebook fields; credit-only eBook checkout (student, €645 store credit) returns {credit_only:true} and the eBook then appears in GET /api/me/downloads with title/author/images/ebook_file_url; /me/downloads is auth-gated and returns [] for a fresh user; POST /api/orders/create accepts the stock-0 eBook (stock bypass) and still rejects stock-0 print books; admin PATCH /api/admin/products/{id} persists type/author/external_amazon_link/ebook_file_url and is role-gated; POST /api/admin/uploads accepts a PDF and rejects .exe; physical-product order regression OK; no _id leakage). Frontend: homepage 'Books & reading' dark section with 3 cards (Buy on Amazon / 'Get the eBook · €14.99'), Shop 'Books' filter pill + BOOK/EBOOK badges + author lines, print-book page shows price+author+'Buy on Amazon' with NO add-to-cart/qty/stock, eBook page shows 'Instant download' badge + 'Sign in to get the eBook' when logged out and PaymentButtons (ebook-pay-stripe 'Get the eBook · €14.99' + credit toggle) when logged in, plus 'Prefer print? Buy on Amazon'. Profile 'My library' lists the purchased eBook with a working Download link to the PDF. Admin → Shop tab: book-options panel renders type/author/amazon inputs, switching type to 'ebook' reveals the file-URL input + Upload button, and Save persists across reload (values restored to originals afterwards). Cart/shipping regression works. FOUND: two hardcoded '$' currency literals (Cart line item, Passes page) breaking the EUR-everywhere requirement.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Cart", "issue": "Cart line-item price is hardcoded with a dollar sign — shows '$8' while the order total below shows '€8.00'. /app/frontend/src/pages/Cart.jsx line 79: <div ...>${it.price}</div>", "selector": "/cart line item price", "priority": "HIGH"},
+      {"component": "Passes", "issue": "Class-pass prices hardcoded with '$': '$22', '$99', 'save $11'. /app/frontend/src/pages/Passes.jsx line 70: <span className=\"serif text-4xl\">${Math.round(c.price)}</span> (and the savings string)", "selector": "/passes price", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin → Shop & Printful → Book & digital options", "issues": ["The type selector uses a native <select> (browser default chrome) instead of the shadcn Select used elsewhere — cosmetic/minor, admin-only"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration50_books.py", "/app/test_reports/pytest/it50_results.xml"],
+  "action_items": [
+    "Cart.jsx:79 — replace the hardcoded '$' with the currency-aware symbol helper (eur → €) used elsewhere (e.g. RelatedProducts.jsx cur()).",
+    "Passes.jsx:70 (and the 'save $11' string) — same currency symbol fix so class passes render in €."
+  ],
+  "critical_code_review_comments": [
+    "seed.py initial products block still hardcodes currency 'usd' for the 4 fallback products (mats/apparel/journal). It only runs on an empty products collection, but a fresh deployment would seed USD items into a EUR app — switch those to 'eur'.",
+    "Currency symbol logic is duplicated in 6+ components ((c||'eur')==='usd' ? '$' : '€'); extract one shared formatMoney(price, currency) helper — the two hardcoded '$' bugs are a direct consequence of this duplication.",
+    "/api/orders/create still rejects type='book' items on stock (correct for Amazon-only books), but the error text says 'out of stock' — consider a clearer 'only available on Amazon' message if a book can ever reach the cart."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration50_books.py"],
+  "success_rate": {"backend": "100%", "frontend": "92%"},
+  "seed_data_creation": "One throwaway registered user (TEST_dl_*@qatest.com) to verify empty /me/downloads; a few pending test orders for student@demo.com (eBook + physical) from /orders/create tests; admin book fields on 'The Advanced 84' were temporarily edited then restored to type=book / author=Tony Sanchez.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "Admin tony@tonyyoga.com / TonyYoga2026! ; Student student@demo.com / Student2026! (store credit €645.02). NOTE: the login page 'demo access' buttons need ~1.5s after click before the fields populate in Playwright.",
+  "context_for_next_testing_agent": "Books feature is functionally complete and verified (backend + frontend + admin). Reusable suite: /app/backend/tests/test_iteration50_books.py (checkout/session requires origin_url in body). Seeded book ids at time of test: print 3a9a7d40… (Core 26&40), print 2e542fa4… (Advanced 84), ebook da2f8820… (Pranayama). Only open items are the two hardcoded '$' literals in Cart.jsx and Passes.jsx — re-verify /cart and /passes render € after the fix.",
+  "rca_of_the_issue": "Cart.jsx and Passes.jsx render prices with a literal '$' prefix instead of deriving the symbol from product.currency ('eur'), so the item price and the total disagree ($8 vs €8.00). All product records in the DB are currency='eur' — the defect is purely presentational and localized to those two JSX lines."
+}

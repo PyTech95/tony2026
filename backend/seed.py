@@ -302,24 +302,56 @@ async def seed():
     if await db.products.count_documents({}) == 0:
         await db.products.insert_many([
             {"id": gen_id(), "title": "Tony's Cork Yoga Mat", "description": "Sustainable cork & natural rubber mat.",
-             "type": "physical", "category": "mats", "price": 89.0, "currency": "usd",
+             "type": "physical", "category": "mats", "price": 89.0, "currency": "eur",
              "stock_qty": 50, "images": ["https://images.unsplash.com/photo-1637157216470-d92cd2edb2e8?crop=entropy&cs=srgb&fm=jpg&q=85"],
              "rating": 4.8, "created_at": now_utc().isoformat()},
             {"id": gen_id(), "title": "The Yogi's Daily Journal", "description": "180-day yoga practice journal by Tony Sanchez.",
-             "type": "physical", "category": "books", "price": 28.0, "currency": "usd",
+             "type": "physical", "category": "books", "price": 28.0, "currency": "eur",
              "stock_qty": 100, "images": ["https://images.pexels.com/photos/7500651/pexels-photo-7500651.jpeg?auto=compress&cs=tinysrgb&dpr=2"],
              "external_amazon_link": "https://www.amazon.com",
              "rating": 4.9, "created_at": now_utc().isoformat()},
             {"id": gen_id(), "title": "Tony Yoga Tee — Sand", "description": "Organic cotton, branded subtly.",
-             "type": "physical", "category": "apparel", "price": 34.0, "currency": "usd",
+             "type": "physical", "category": "apparel", "price": 34.0, "currency": "eur",
              "stock_qty": 75, "images": ["https://images.pexels.com/photos/8436684/pexels-photo-8436684.jpeg?auto=compress"],
              "variants": [{"size": "S"}, {"size": "M"}, {"size": "L"}, {"size": "XL"}],
              "rating": 4.6, "created_at": now_utc().isoformat()},
             {"id": gen_id(), "title": "Cork Blocks (Set of 2)", "description": "Natural cork yoga blocks.",
-             "type": "physical", "category": "mats", "price": 32.0, "currency": "usd",
+             "type": "physical", "category": "mats", "price": 32.0, "currency": "eur",
              "stock_qty": 60, "images": ["https://images.unsplash.com/photo-1637157216470-d92cd2edb2e8?crop=entropy&cs=srgb&fm=jpg&q=85"],
              "rating": 4.7, "created_at": now_utc().isoformat()},
         ])
+
+    # --- Books & reading (idempotent) — physical (Amazon) + digital eBooks sold here ---
+    _demo_books = [
+        {"title": "The Core 26 & 40 — Original Hot Yoga",
+         "description": "Tony Sanchez's definitive guide to the original 26- and 40-posture hot yoga series, broken down posture by posture with the alignment and breath detail refined over five decades on the mat.",
+         "type": "book", "category": "books", "price": 24.0, "currency": "eur", "stock_qty": 0,
+         "author": "Tony Sanchez",
+         "images": ["https://static.prod-images.emergentagent.com/jobs/c262e325-7acf-4b77-b682-08b41f67ffc3/images/e6a8b92e15808ca1efffbf720dcd0270449d853a875284e2bf034403f07187cd.jpeg"],
+         "external_amazon_link": "https://www.amazon.com/s?k=Tony+Sanchez+hot+yoga",
+         "featured": True, "featured_rank": 0},
+        {"title": "The Advanced 84 — Postures of Mastery",
+         "description": "The advanced 84-posture series for dedicated practitioners and teachers — a lifetime of practice, documented with precision.",
+         "type": "book", "category": "books", "price": 32.0, "currency": "eur", "stock_qty": 0,
+         "author": "Tony Sanchez",
+         "images": ["https://static.prod-images.emergentagent.com/jobs/c262e325-7acf-4b77-b682-08b41f67ffc3/images/4d39644e1447f2c39495f768846d250fa3ee080d07716056cc4ff1cd37b9a2e1.jpeg"],
+         "external_amazon_link": "https://www.amazon.com/s?k=Tony+Sanchez+advanced+yoga"},
+        {"title": "Pranayama & Meditation — Digital Guide",
+         "description": "A downloadable guide to the breath: pranayama techniques and seated meditations to deepen any practice. Instant PDF download — also available in print on Amazon.",
+         "type": "ebook", "category": "books", "price": 14.99, "currency": "eur", "stock_qty": 0,
+         "author": "Tony Sanchez",
+         "images": ["https://static.prod-images.emergentagent.com/jobs/c262e325-7acf-4b77-b682-08b41f67ffc3/images/8f5fc2e42965c06192be46f4839b96c28d93de6506d2bec363ca1f7054a2bd4f.jpeg"],
+         "ebook_file_url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+         "external_amazon_link": "https://www.amazon.com/s?k=Tony+Sanchez+pranayama+meditation",
+         "featured": True, "featured_rank": 1},
+    ]
+    for b in _demo_books:
+        if not await db.products.find_one({"title": b["title"]}):
+            await db.products.insert_one({
+                "id": gen_id(), "rating": 5.0, "review_count": 0, "visible": True,
+                "created_at": now_utc().isoformat(), **b,
+            })
+
 
     if await db.announcements.count_documents({}) == 0:
         await db.announcements.insert_one({

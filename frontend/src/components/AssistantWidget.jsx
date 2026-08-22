@@ -1,7 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, X, Send, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { MessageCircle, X, Send, Mic, PhoneOff, Volume2 } from "lucide-react";
 import { api } from "@/lib/api";
+
+// Short, spoken-style utterances the visitor might use to end the chat.
+const STOP_RE = /^(no|nope|nah|no thanks|no thank you|nothing|nothing else|that'?s all|that is all|i'?m good|im good|i'?m okay|stop|bye|goodbye|bye bye|see you|cancel|exit)[.!\s]*$/i;
+const isStopIntent = (t) => {
+  const s = (t || "").trim().toLowerCase();
+  if (!s) return false;
+  if (STOP_RE.test(s)) return true;
+  return s.split(/\s+/).length <= 3 && /\b(no|bye|stop|goodbye|nothing)\b/.test(s);
+};
 
 export default function AssistantWidget() {
   const [cfg, setCfg] = useState(null);
@@ -12,65 +21,47 @@ export default function AssistantWidget() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState(null);
-  const [listening, setListening] = useState(false);
-  const [speakOn, setSpeakOn] = useState(false);
-  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [active, setActive] = useState(false);       // voice conversation running
+  const [mode, setMode] = useState("idle");          // idle | listening | thinking | speaking
   const [lead, setLead] = useState({ name: "", email: "", phone: "", interest: "" });
   const [leadSent, setLeadSent] = useState(false);
   const [waUrl, setWaUrl] = useState("");
   const [showLead, setShowLead] = useState(false);
+
   const scrollRef = useRef(null);
-  const mediaRecRef = useRef(null);
-  const chunksRef = useRef([]);
-  const streamRef = useRef(null);
   const audioRef = useRef(null);
+  const streamRef = useRef(null);
+  const mediaRecRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const rafRef = useRef(null);
+  const activeRef = useRef(false);
+  const sessionRef = useRef(null);
+  const turnsRef = useRef(0);
 
   useEffect(() => { api.get("/assistant/config").then(({ data }) => setCfg(data)).catch(() => setCfg(false)); }, []);
 
+  // Auto-open the panel shortly after load (once per session, unless dismissed).
   useEffect(() => {
     if (!cfg || cfg.enabled === false || dismissed) return;
-    const t = setTimeout(() => { if (!open) setTeaser(true); }, (cfg.popup_delay || 8) * 1000);
+    const t = setTimeout(() => { setOpen(true); setTeaser(true); }, Math.min((cfg.popup_delay || 3), 3) * 1000);
     return () => clearTimeout(t);
-  }, [cfg, dismissed, open]);
+  }, [cfg, dismissed]);
 
+  // Seed the greeting message when the panel opens.
   useEffect(() => {
     if (open && msgs.length === 0 && cfg?.greeting) setMsgs([{ role: "assistant", text: cfg.greeting }]);
   }, [open, cfg, msgs.length]);
 
-  useEffect(() => { scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" }); }, [msgs, showLead]);
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" }); }, [msgs, showLead, mode]);
+  useEffect(() => { sessionRef.current = sessionId; }, [sessionId]);
+  useEffect(() => () => { cleanup(); }, []); // unmount
 
-  const playB64 = (b64) => {
-    if (!b64) return;
-    try {
-      const src = `data:audio/mpeg;base64,${b64}`;
-      if (!audioRef.current) audioRef.current = new Audio();
-      audioRef.current.src = src;
-      audioRef.current.play().catch(() => {});
-    } catch { /* noop */ }
-  };
-
-  // Read a text reply aloud using server-side OpenAI TTS (higher quality, cross-browser).
-  const speak = async (text) => {
-    if (!speakOn || !text) return;
-    try {
-      const { data } = await api.post("/assistant/tts", { text });
-      playB64(data.audio_base64);
-    } catch { /* noop */ }
-  };
-
-  const send = async (text) => {
-    const content = (text ?? input).trim();
-    if (!content || sending) return;
-    setInput(""); setMsgs((m) => [...m, { role: "visitor", text: content }]); setSending(true);
-    try {
-      const { data } = await api.post("/assistant/chat", { session_id: sessionId, message: content });
-      setSessionId(data.session_id);
-      setMsgs((m) => [...m, { role: "assistant", text: data.reply }]);
-      speak(data.reply);
-      if (msgs.length >= 3) setShowLead(true);
-    } catch {
-      setMsgs((m) => [...m, { role: "assistant", text: "Sorry, I had trouble replying. You can reach Tony's team on WhatsApp anytime." }]);
-    } finally { setSending(false); }
+  const cleanup = () => {
+    activeRef.current = false;
+    cancelAnimationFrame(rafRef.current);
+    try { mediaRecRef.current?.state !== "inactive" && mediaRecRef.current?.stop(); } catch { /* noop */ }
+    try { audioRef.current?.pause(); } catch { /* noop */ }
+    stopTracks();
   };
 
   const stopTracks = () => {
@@ -78,88 +69,202 @@ export default function AssistantWidget() {
     streamRef.current = null;
   };
 
-  // Voice turn: record mic audio, send to Whisper, get a spoken reply back.
-  const toggleMic = async () => {
-    if (listening) { try { mediaRecRef.current?.stop(); } catch { /* noop */ } return; }
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") return;
+  // Play base64 mp3; resolves when playback finishes (so we don't listen over ourselves).
+  const playB64 = (b64) => new Promise((resolve) => {
+    if (!b64) return resolve();
+    try {
+      if (!audioRef.current) audioRef.current = new Audio();
+      const a = audioRef.current;
+      a.src = `data:audio/mpeg;base64,${b64}`;
+      a.onended = () => resolve();
+      a.onerror = () => resolve();
+      a.play().catch(() => resolve());
+    } catch { resolve(); }
+  });
+
+  const speakText = async (text) => {
+    if (!text) return;
+    setMode("speaking");
+    try {
+      const { data } = await api.post("/assistant/tts", { text });
+      await playB64(data.audio_base64);
+    } catch { /* silent */ }
+  };
+
+  // Record one turn with silence detection (VAD). Resolves with a Blob or null.
+  const listenTurn = () => new Promise(async (resolve) => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") return resolve(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      chunksRef.current = [];
+      const ctx = audioCtxRef.current || new (window.AudioContext || window.webkitAudioContext)();
+      audioCtxRef.current = ctx;
+      if (ctx.state === "suspended") { try { await ctx.resume(); } catch { /* noop */ } }
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+
       const rec = new MediaRecorder(stream);
       mediaRecRef.current = rec;
-      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      rec.onstop = async () => {
-        setListening(false); stopTracks();
-        const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
-        if (!blob.size) return;
-        setVoiceBusy(true);
-        try {
-          const fd = new FormData();
-          fd.append("audio", blob, "voice.webm");
-          if (sessionId) fd.append("session_id", sessionId);
-          fd.append("speak", "true");
-          const { data } = await api.post("/assistant/voice", fd, { headers: { "Content-Type": "multipart/form-data" } });
-          setSessionId(data.session_id);
-          setMsgs((m) => [...m, { role: "visitor", text: data.transcript }, { role: "assistant", text: data.reply }]);
-          playB64(data.audio_base64);
-          if (msgs.length >= 2) setShowLead(true);
-        } catch {
-          setMsgs((m) => [...m, { role: "assistant", text: "I couldn't catch that — try again, or type your question." }]);
-        } finally { setVoiceBusy(false); }
+      const chunks = [];
+      const st = { speech: false, stopped: false };
+      rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      const finish = () => {
+        if (st.stopped) return; st.stopped = true;
+        cancelAnimationFrame(rafRef.current);
+        try { source.disconnect(); } catch { /* noop */ }
+        try { rec.state !== "inactive" && rec.stop(); } catch { /* noop */ }
+      };
+      rec.onstop = () => {
+        stopTracks();
+        const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+        resolve(st.speech && blob.size > 1200 ? blob : null);
       };
       rec.start();
-      setListening(true);
-    } catch { setListening(false); stopTracks(); }
+
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const start = Date.now();
+      let silenceStart = null;
+      const THRESH = 0.022;
+      const tick = () => {
+        if (!activeRef.current) return finish();
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) { const x = (data[i] - 128) / 128; sum += x * x; }
+        const rms = Math.sqrt(sum / data.length);
+        const now = Date.now();
+        if (rms > THRESH) { st.speech = true; silenceStart = null; }
+        else if (st.speech) {
+          if (silenceStart == null) silenceStart = now;
+          else if (now - silenceStart > 1300) return finish();   // end of utterance
+        }
+        if (now - start > 15000) return finish();                 // hard cap
+        if (!st.speech && now - start > 7000) return finish();    // no speech -> give up
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    } catch { resolve(null); }
+  });
+
+  const sendVoice = async (blob) => {
+    setMode("thinking");
+    try {
+      const fd = new FormData();
+      fd.append("audio", blob, "voice.webm");
+      if (sessionRef.current) fd.append("session_id", sessionRef.current);
+      fd.append("speak", "true");
+      const { data } = await api.post("/assistant/voice", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setSessionId(data.session_id); sessionRef.current = data.session_id;
+      setMsgs((m) => [...m, { role: "visitor", text: data.transcript }, { role: "assistant", text: data.reply }]);
+      turnsRef.current += 1;
+      if (turnsRef.current >= 2) setShowLead(true);
+      const stop = isStopIntent(data.transcript);
+      await speakText(data.reply || (stop ? "Take care, and see you on the mat." : ""));
+      return { stop };
+    } catch {
+      return { stop: false, error: true };
+    }
+  };
+
+  // Continuous hands-free loop: listen -> transcribe -> speak -> listen ...
+  const conversationLoop = useCallback(async () => {
+    while (activeRef.current) {
+      setMode("listening");
+      const blob = await listenTurn();
+      if (!activeRef.current) break;
+      if (!blob) { stopVoice(); break; }                 // silence -> pause the call
+      const res = await sendVoice(blob);
+      if (!activeRef.current) break;
+      if (res?.stop) { endCall(); break; }               // "no / bye" -> hang up
+    }
+  }, []); // eslint-disable-line
+
+  const startVoice = async () => {
+    if (activeRef.current) return;
+    setTeaser(false);
+    activeRef.current = true; setActive(true);
+    try {
+      const ctx = audioCtxRef.current || new (window.AudioContext || window.webkitAudioContext)();
+      audioCtxRef.current = ctx;
+      if (ctx.state === "suspended") await ctx.resume();
+    } catch { /* noop */ }
+    const greet = cfg?.greeting || "Hi, I'm Tony's assistant. How can I help you today?";
+    setMsgs((m) => (m.some((x) => x.text === greet) ? m : [...m, { role: "assistant", text: greet }]));
+    await speakText(greet);
+    if (activeRef.current) conversationLoop();
+  };
+
+  const stopVoice = () => {
+    activeRef.current = false; setActive(false); setMode("idle");
+    cancelAnimationFrame(rafRef.current);
+    try { mediaRecRef.current?.state !== "inactive" && mediaRecRef.current?.stop(); } catch { /* noop */ }
+    stopTracks();
+  };
+
+  const endCall = () => {
+    stopVoice();
+    setMsgs((m) => [...m, { role: "assistant", text: "Anytime — I'm here whenever you need me. 🌿" }]);
+  };
+
+  // Text fallback (typed questions still work + get spoken back if a call is active).
+  const send = async (text) => {
+    const content = (text ?? input).trim();
+    if (!content || sending) return;
+    setInput(""); setMsgs((m) => [...m, { role: "visitor", text: content }]); setSending(true);
+    try {
+      const { data } = await api.post("/assistant/chat", { session_id: sessionRef.current, message: content });
+      setSessionId(data.session_id); sessionRef.current = data.session_id;
+      setMsgs((m) => [...m, { role: "assistant", text: data.reply }]);
+      turnsRef.current += 1;
+      if (turnsRef.current >= 2) setShowLead(true);
+      if (audioCtxRef.current) speakText(data.reply);
+    } catch {
+      setMsgs((m) => [...m, { role: "assistant", text: "Sorry, I had trouble replying. You can reach Tony's team on WhatsApp anytime." }]);
+    } finally { setSending(false); }
   };
 
   const submitLead = async () => {
     if (!lead.name && !lead.email && !lead.phone) return;
     try {
-      const { data } = await api.post("/assistant/lead", { session_id: sessionId, ...lead });
+      const { data } = await api.post("/assistant/lead", { session_id: sessionRef.current, ...lead });
       setLeadSent(true); setWaUrl(data.whatsapp_url || "");
-      setMsgs((m) => [...m, { role: "assistant", text: `Thanks ${lead.name || "so much"}! Tony's team will reach out. You can also message us directly on WhatsApp below.` }]);
+      const waLine = data.whatsapp_url ? " You can also message us directly on WhatsApp below." : "";
+      setMsgs((m) => [...m, { role: "assistant", text: `Thanks ${lead.name || "so much"}! Tony's team will reach out soon.${waLine}` }]);
     } catch { /* noop */ }
   };
 
-  const close = () => { setOpen(false); setTeaser(false); setDismissed(true); sessionStorage.setItem("ty_assistant_dismissed", "1"); };
+  const close = () => { cleanup(); setOpen(false); setTeaser(false); setActive(false); setMode("idle"); setDismissed(true); sessionStorage.setItem("ty_assistant_dismissed", "1"); };
 
   if (!cfg || cfg.enabled === false) return null;
 
+  const statusLabel = { idle: active ? "Tap the mic to talk" : "", listening: "Listening…", thinking: "Thinking…", speaking: "Speaking…" }[mode];
+  const orbClass = {
+    idle: "bg-[#F2F2EC] text-[#6B7269]",
+    listening: "bg-[#B25A45] text-white animate-pulse ring-4 ring-[#B25A45]/25",
+    thinking: "bg-[#1C221F] text-[#E0A38F]",
+    speaking: "bg-[#839682] text-white ring-4 ring-[#839682]/25",
+  }[mode];
+
   return (
     <div className="fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-3" data-testid="assistant-widget">
-      <AnimatePresence>
-        {teaser && !open && (
-          <motion.button
-            initial={{ opacity: 0, y: 12, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-            onClick={() => { setOpen(true); setTeaser(false); }}
-            data-testid="assistant-teaser"
-            className="max-w-[240px] rounded-2xl bg-white shadow-xl border border-[#E5E6DF] px-4 py-3 text-left text-sm text-[#1C221F]"
-          >
-            {cfg.greeting}
-          </motion.button>
-        )}
-      </AnimatePresence>
-
       <AnimatePresence>
         {open && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.96 }}
             transition={{ type: "spring", stiffness: 320, damping: 30 }}
-            className="w-[92vw] max-w-[380px] h-[70vh] max-h-[560px] rounded-3xl bg-[#FAFAF7] shadow-2xl border border-[#E5E6DF] flex flex-col overflow-hidden"
+            className="w-[92vw] max-w-[380px] h-[74vh] max-h-[600px] rounded-3xl bg-[#FAFAF7] shadow-2xl border border-[#E5E6DF] flex flex-col overflow-hidden"
             data-testid="assistant-panel"
           >
             <div className="flex items-center justify-between bg-[#1C221F] text-[#FAFAF7] px-4 py-3">
-              <div>
-                <div className="text-[13px] font-semibold">Tony's Assistant</div>
-                <div className="text-[10px] text-white/60">Here to guide your practice</div>
+              <div className="flex items-center gap-2.5">
+                <span className={`h-2 w-2 rounded-full ${active ? "bg-[#7FD1A6] animate-pulse" : "bg-white/30"}`} />
+                <div>
+                  <div className="text-[13px] font-semibold">Tony's Assistant</div>
+                  <div className="text-[10px] text-white/60" data-testid="assistant-status">{active ? (statusLabel || "On a call") : "Voice guide · here to help"}</div>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setSpeakOn((v) => !v)} data-testid="assistant-speak-toggle" title="Read replies aloud" className="p-1.5 rounded-full hover:bg-white/10">
-                  {speakOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4 text-white/60" />}
-                </button>
-                <button onClick={close} data-testid="assistant-close" className="p-1.5 rounded-full hover:bg-white/10"><X className="h-4 w-4" /></button>
-              </div>
+              <button onClick={close} data-testid="assistant-close" className="p-1.5 rounded-full hover:bg-white/10"><X className="h-4 w-4" /></button>
             </div>
 
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
@@ -189,16 +294,41 @@ export default function AssistantWidget() {
               )}
             </div>
 
-            <div className="border-t border-[#E5E6DF] p-3 flex items-center gap-2 bg-white">
-              <button onClick={toggleMic} disabled={voiceBusy} data-testid="assistant-mic" title={listening ? "Tap to stop" : "Speak to Tony's assistant"} className={`p-2 rounded-full ${listening ? "bg-[#B25A45] text-white animate-pulse" : "bg-[#F2F2EC] text-[#6B7269]"} disabled:opacity-50`}>
-                {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              </button>
-              <input
-                value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
-                data-testid="assistant-input" placeholder={voiceBusy ? "Listening…" : listening ? "Recording… tap mic to send" : "Ask about courses, classes…"}
-                className="flex-1 rounded-full border border-[#E5E6DF] px-4 py-2 text-sm focus:outline-none focus:border-[#B25A45]"
-              />
-              <button onClick={() => send()} disabled={sending} data-testid="assistant-send" className="p-2 rounded-full bg-[#B25A45] text-white disabled:opacity-50"><Send className="h-4 w-4" /></button>
+            {/* Voice call bar */}
+            <div className="border-t border-[#E5E6DF] bg-white px-4 py-3">
+              <div className="flex flex-col items-center gap-2">
+                {!active ? (
+                  <button
+                    onClick={startVoice}
+                    data-testid="assistant-voice-start"
+                    className="group relative flex items-center gap-2.5 rounded-full bg-[#B25A45] text-white px-6 py-3 text-sm font-semibold shadow-lg hover:bg-[#9c4c39] transition-colors"
+                  >
+                    <span className="absolute inset-0 rounded-full bg-[#B25A45]/40 animate-ping group-hover:hidden" />
+                    <Mic className="h-4 w-4 relative" /> <span className="relative">Talk to Tony's assistant</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <div className={`h-14 w-14 rounded-full flex items-center justify-center transition-all ${orbClass}`} data-testid="assistant-orb">
+                      {mode === "speaking" ? <Volume2 className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+                    </div>
+                    <button onClick={endCall} data-testid="assistant-voice-stop" className="h-11 w-11 rounded-full bg-[#1C221F] text-white flex items-center justify-center hover:opacity-90" title="End conversation">
+                      <PhoneOff className="h-5 w-5" />
+                    </button>
+                  </div>
+                )}
+                <div className="text-[11px] text-[#839682] h-4" data-testid="assistant-voice-hint">
+                  {active ? (statusLabel || "Just start speaking — I'm listening") : "Hands-free voice · or type below"}
+                </div>
+              </div>
+
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
+                  data-testid="assistant-input" placeholder="Or type your question…"
+                  className="flex-1 rounded-full border border-[#E5E6DF] px-4 py-2 text-sm focus:outline-none focus:border-[#B25A45]"
+                />
+                <button onClick={() => send()} disabled={sending} data-testid="assistant-send" className="p-2 rounded-full bg-[#B25A45] text-white disabled:opacity-50"><Send className="h-4 w-4" /></button>
+              </div>
             </div>
           </motion.div>
         )}

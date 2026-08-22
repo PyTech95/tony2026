@@ -45,9 +45,11 @@ async def create_order(payload: OrderCreate, user: dict = Depends(get_current_us
         qty = int(it.get("quantity", 1))
         if qty < 1:
             raise HTTPException(400, f"Invalid quantity for {product['title']}")
-        stock = int(product.get("stock_qty", 0) or 0)
-        if stock < qty:
-            raise HTTPException(400, f"'{product['title']}' is out of stock (only {stock} left)")
+        is_digital = product.get("type") == "ebook"
+        if not is_digital:
+            stock = int(product.get("stock_qty", 0) or 0)
+            if stock < qty:
+                raise HTTPException(400, f"'{product['title']}' is out of stock (only {stock} left)")
         line_total = product["price"] * qty
         total += line_total
         currency = product.get("currency", "usd")
@@ -103,6 +105,37 @@ async def create_order(payload: OrderCreate, user: dict = Depends(get_current_us
 @api.get("/orders/mine")
 async def my_orders(user: dict = Depends(get_current_user)):
     return await db.orders.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+
+
+@api.get("/me/downloads")
+async def my_downloads(user: dict = Depends(get_current_user)):
+    """Digital products (eBooks) the user has purchased — download links are only
+    revealed here, gated by a paid order containing that product."""
+    orders = await db.orders.find(
+        {"user_id": user["id"], "status": {"$in": ["paid", "fulfilled", "shipped", "completed"]}},
+        {"_id": 0, "items": 1},
+    ).to_list(500)
+    pids = set()
+    for o in orders:
+        for line in o.get("items", []):
+            if line.get("product_id"):
+                pids.add(line["product_id"])
+    if not pids:
+        return []
+    prods = await db.products.find(
+        {"id": {"$in": list(pids)}, "type": "ebook"}, {"_id": 0},
+    ).to_list(200)
+    return [
+        {
+            "product_id": p["id"],
+            "title": p.get("title"),
+            "author": p.get("author"),
+            "images": p.get("images", []),
+            "ebook_file_url": p.get("ebook_file_url"),
+        }
+        for p in prods
+        if p.get("ebook_file_url")
+    ]
 
 
 @api.get("/orders/{order_id}")

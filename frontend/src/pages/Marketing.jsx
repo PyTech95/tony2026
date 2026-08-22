@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Play, Download, Menu, X, Check, Compass, Wind, Moon, GraduationCap, Flame, User, Flower2 } from "lucide-react";
+import { ArrowRight, Play, Download, Menu, X, Check, Compass, Wind, Moon, GraduationCap, Flame, User, Flower2, BookOpen, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
 import InstagramReels from "@/components/InstagramReels";
@@ -388,6 +388,46 @@ function BestSellers() {
   );
 }
 
+function BooksSection() {
+  const [items, setItems] = useState([]);
+  useEffect(() => { api.get("/products?category=books").then(({ data }) => setItems((data || []).slice(0, 8))).catch(() => setItems([])); }, []);
+  if (!items.length) return null;
+  return (
+    <section className="px-5 py-14 sm:py-20 bg-[#1C221F] text-[#FAFAF7]" data-testid="home-books">
+      <div className="mx-auto max-w-6xl">
+        <div className="flex items-end justify-between gap-3 mb-8">
+          <div>
+            <div className="inline-flex items-center gap-2 eyebrow !text-[#E0A38F]"><BookOpen className="h-3.5 w-3.5" /> The writing</div>
+            <h2 className="serif text-3xl sm:text-4xl mt-1.5">Books &amp; reading</h2>
+            <p className="text-[15px] text-[#B7BEB4] mt-2 max-w-md">Five decades on the mat, set down in print and digital. Read the method behind the Core Series.</p>
+          </div>
+          <Link to="/shop" data-testid="home-books-all" className="text-sm font-semibold text-[#E0A38F] hover:opacity-70 shrink-0">All books →</Link>
+        </div>
+        <div className="flex gap-5 overflow-x-auto no-scrollbar pb-2 snap-x">
+          {items.map((p) => (
+            <Link key={p.id} to={`/shop/${p.id}`} data-testid={`home-book-${p.id}`} className="shrink-0 w-40 sm:w-48 snap-start group">
+              <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-white/5 shadow-lg shadow-black/30 ring-1 ring-white/10">
+                {p.type === "ebook" && (
+                  <span className="absolute top-2 left-2 z-10 rounded-full bg-[#B25A45] px-2 py-0.5 text-[9px] uppercase tracking-widest font-bold text-white">eBook</span>
+                )}
+                {p.images?.[0]
+                  ? <img src={p.images[0]} alt={p.title} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  : <div className="h-full w-full flex items-center justify-center"><BookOpen className="h-8 w-8 text-[#E0A38F]/60" /></div>}
+              </div>
+              <div className="mt-3 text-[13px] font-semibold leading-tight line-clamp-2">{p.title}</div>
+              {p.author && <div className="text-[11px] text-[#8A928A] mt-0.5">by {p.author}</div>}
+              <div className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold text-[#E0A38F]">
+                {p.type === "ebook" ? <>Get the eBook · €{p.price}</> : <>Buy on Amazon <ExternalLink className="h-3 w-3" /></>}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
 function QuizBanner() {
   return (
     <section className="px-5 py-14 sm:py-20" data-testid="home-quiz-banner">
@@ -509,6 +549,7 @@ export default function Marketing() {
       <Programs />
       <QuizBanner />
       <BestSellers />
+      <BooksSection />
       <DiscoverStrip />
       <ComingSoon />
       <Retreats />

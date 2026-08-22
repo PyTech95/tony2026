@@ -20,13 +20,16 @@ EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
 ASSISTANT_MODEL = ("anthropic", "claude-sonnet-4-6")
 
 PERSONA = (
-    "You are the friendly virtual assistant for Tony Sanchez Yoga, a world-class yoga teacher "
-    "with ~50 years of experience. Your tone is calm, warm, encouraging and concise (2-4 sentences). "
-    "Help visitors choose the right offering and, when they show interest, gently collect their name, "
-    "email and phone/WhatsApp so Tony's team can follow up. Never invent prices, dates or facts that "
-    "aren't in the catalog below. If unsure, suggest talking to Tony on WhatsApp. Recommend the best-fit "
-    "program (Core 20 for beginners, Core 40 to progress, Core 84 Asana Mastery for advanced), a live "
-    "class, or the shop. Keep replies mobile-friendly."
+    "You are Tony's Assistant — the warm, knowledgeable voice guide for Tony Sanchez Yoga, "
+    "led by Tony Sanchez, a master teacher with ~50 years on the mat (Ghosh/Bikram lineage), based in Málaga, Spain. "
+    "This is a SPOKEN, hands-free conversation, so keep every reply SHORT and natural — 1 to 3 sentences, no lists, "
+    "no markdown, no emojis. Sound calm, friendly and human. Always finish with a brief question to keep the "
+    "conversation flowing, unless the person is saying goodbye. "
+    "Use ONLY the catalog facts below — never invent prices, dates, links or courses. If you don't know, say so and "
+    "offer to take their name and email so Tony's team can follow up (only mention WhatsApp if the visitor asks). Recommend the best-fit next step: Core 26+ for beginners, "
+    "Core 40 to progress, Core 84 Asana Mastery for advanced; live Zoom classes; meditations & breathwork; the shop and books; "
+    "retreats; or a membership. When someone shows real interest, gently offer to take their name and email so Tony's team can follow up. "
+    "If the person says 'no', 'nothing', 'that's all', 'bye' or similar, warmly wish them well in one short sentence and stop."
 )
 
 
@@ -46,16 +49,67 @@ class LeadIn(BaseModel):
 
 
 async def _catalog_text() -> str:
-    progs = await db.programs.find({}, {"_id": 0, "title": 1, "level": 1, "price": 1, "price_model": 1, "description": 1}).to_list(50)
-    lines = ["COURSES:"]
-    for p in progs:
-        price = "free" if p.get("price_model") == "free" else (f"€{round(p.get('price', 0))}" + (" (or with membership)" if p.get("price_model") == "membership" else " one-time"))
-        desc = (p.get("description") or "")[:110]
-        lines.append(f"- {p.get('title')} ({p.get('level')}, {price}): {desc}")
-    bundles = await db.bundles.find({"active": True}, {"_id": 0, "title": 1, "price": 1}).to_list(20)
-    for b in bundles:
-        lines.append(f"- BUNDLE {b.get('title')}: €{round(b.get('price', 0))}")
-    lines.append("Also: live Zoom classes (Schedule), class passes & memberships, and a shop (books, mats, posters).")
+    lines: List[str] = []
+    def _money(v) -> str:
+        try: n = float(v or 0)
+        except Exception: n = 0.0
+        return (f"{n:.2f}".rstrip("0").rstrip("."))
+    TIER_LABEL = {"online_only": "Essential (online)", "online_inperson": "Unlimited (online + in-person)", "vip": "Annual VIP"}
+    def _plan_name(m) -> str:
+        nm = m.get("name") or m.get("title") or ""
+        if not nm or str(nm).startswith("i18n:"):
+            return TIER_LABEL.get(m.get("tier"), (m.get("tier") or "Membership").replace("_", " ").title())
+        return nm
+    try:
+        progs = await db.programs.find({}, {"_id": 0, "title": 1, "level": 1, "price": 1, "price_model": 1, "description": 1, "duration_weeks": 1}).to_list(50)
+        if progs:
+            lines.append("COURSES (on-demand programs):")
+            for p in progs:
+                price = "free" if p.get("price_model") == "free" else (f"€{_money(p.get('price'))}" + (" or included with a membership" if p.get("price_model") == "membership" else " one-time"))
+                dur = f"{p.get('duration_weeks')} weeks, " if p.get("duration_weeks") else ""
+                desc = (p.get("description") or "")[:100]
+                lines.append(f"- {p.get('title')} ({dur}{p.get('level')}, {price}): {desc}")
+    except Exception:
+        pass
+    try:
+        plans = await db.membership_plans.find({"is_active": True}, {"_id": 0, "name": 1, "title": 1, "price": 1, "billing_cycle": 1, "tier": 1}).to_list(20)
+        if plans:
+            lines.append("MEMBERSHIPS:")
+            for m in plans:
+                lines.append(f"- {_plan_name(m)}: €{_money(m.get('price'))}/{m.get('billing_cycle', 'month')}")
+    except Exception:
+        pass
+    lines.append("CLASS PASSES: Drop-in class €22 (1 credit); 5-class pack €99 (never expires). Live Zoom classes are on the Schedule page.")
+    try:
+        works = await db.workshops.find({"is_active": True}, {"_id": 0, "title": 1, "start_date": 1, "deposit_eur": 1, "location": 1}).sort("start_date", 1).to_list(10)
+        if works:
+            lines.append("RETREATS:")
+            for w in works:
+                when = ""
+                if w.get("start_date"):
+                    try: when = " · " + str(w["start_date"])[:7]
+                    except Exception: when = ""
+                dep = f", deposit €{_money(w.get('deposit_eur'))}" if w.get("deposit_eur") else ""
+                loc = f" in {w.get('location')}" if w.get("location") else ""
+                lines.append(f"- {w.get('title')}{loc}{when}{dep}")
+    except Exception:
+        pass
+    try:
+        meds = await db.meditations.count_documents({"is_published": True})
+        if meds:
+            lines.append(f"MEDITATION & BREATHWORK: {meds} guided audio/video sessions (meditation, breathwork, yoga nidra), filterable by focus & length.")
+    except Exception:
+        pass
+    try:
+        books = await db.products.find({"category": "books", "visible": {"$ne": False}}, {"_id": 0, "title": 1, "price": 1, "type": 1}).to_list(20)
+        if books:
+            lines.append("BOOKS & READING:")
+            for b in books:
+                kind = "eBook, instant download here" if b.get("type") == "ebook" else "print, on Amazon"
+                lines.append(f"- {b.get('title')} (€{_money(b.get('price'))}, {kind})")
+    except Exception:
+        pass
+    lines.append("SHOP also has mats, blocks, apparel, posters. Payment: card or PayPal; gift-card store credit can be applied at checkout. Not sure where to start? The 'Find Your Path' quiz recommends a program.")
     return "\n".join(lines)
 
 

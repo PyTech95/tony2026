@@ -483,11 +483,14 @@ async def _fulfill_payment(txn: dict):
                 upsert=True,
             )
     elif item_type == "product":
-        # Decrement stock and create an order
-        await db.products.update_one({"id": item_id}, {"$inc": {"stock_qty": -int(txn.get("quantity", 1))}})
+        # Decrement stock (physical only) and create a paid order.
+        prod = await db.products.find_one({"id": item_id}, {"_id": 0})
+        if prod and prod.get("type") != "ebook":
+            await db.products.update_one({"id": item_id}, {"$inc": {"stock_qty": -int(txn.get("quantity", 1))}})
         await db.orders.insert_one({
             "id": gen_id(), "user_id": user_id,
-            "items": [{"product_id": item_id, "quantity": txn.get("quantity", 1)}],
+            "items": [{"product_id": item_id, "quantity": txn.get("quantity", 1),
+                       "title": (prod or {}).get("title")}],
             "total": txn["amount"], "currency": txn["currency"],
             "status": "paid", "created_at": now_utc().isoformat(),
         })
@@ -500,7 +503,9 @@ async def _fulfill_payment(txn: dict):
                 for line in order.get("items", []):
                     pid = line.get("product_id"); qty = int(line.get("quantity", 1))
                     if pid:
-                        await db.products.update_one({"id": pid}, {"$inc": {"stock_qty": -qty}})
+                        prod = await db.products.find_one({"id": pid}, {"_id": 0, "type": 1})
+                        if not prod or prod.get("type") != "ebook":
+                            await db.products.update_one({"id": pid}, {"$inc": {"stock_qty": -qty}})
                 await db.orders.update_one(
                     {"id": order_id},
                     {"$set": {"status": "paid", "paid_at": now_utc().isoformat()}},

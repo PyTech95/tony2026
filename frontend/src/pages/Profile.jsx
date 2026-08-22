@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
-import { LogOut, User as UserIcon, Sparkles, ShoppingBag, GraduationCap, Gift, Shield, Flame, MountainSnow, Ticket, Heart, Trophy } from "lucide-react";
+import { LogOut, User as UserIcon, Sparkles, ShoppingBag, GraduationCap, Gift, Shield, Flame, MountainSnow, Ticket, Heart, Trophy, BookOpen, Download } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { usePaymentProviders } from "@/lib/providers";
@@ -30,6 +30,7 @@ export default function Profile() {
   const [gcBusy, setGcBusy] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [downloads, setDownloads] = useState([]);
   const { paypal: paypalAvailable } = usePaymentProviders();
 
   const refundPreview = (r) => {
@@ -61,6 +62,7 @@ export default function Profile() {
         setSub(s.data);
         setRetreats(r.data || []);
         setCredit(c.data?.store_credit || 0);
+        api.get("/me/downloads").then(({ data }) => setDownloads(data || [])).catch(() => setDownloads([]));
       } catch { setBookings([]); }
     })();
   }, []);
@@ -197,6 +199,32 @@ export default function Profile() {
             </Link>
           )}
         </section>
+
+        {/* Digital library — purchased eBooks */}
+        {downloads.length > 0 && (
+          <section data-testid="profile-downloads" className="rounded-3xl bg-white border border-[#E5E6DF] p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <BookOpen className="h-4 w-4 text-[#B25A45]" />
+              <span className="text-sm font-semibold text-[#1C221F]">My library</span>
+            </div>
+            <ul className="space-y-2">
+              {downloads.map((d) => (
+                <li key={d.product_id} data-testid={`download-${d.product_id}`} className="flex items-center gap-3 rounded-2xl bg-[#F7F2EC] border border-[#E7D9CB] p-2.5">
+                  <div className="h-14 w-11 shrink-0 rounded-md overflow-hidden bg-white">
+                    {d.images?.[0] && <img src={d.images[0]} alt="" className="h-full w-full object-cover" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-semibold text-[#1C221F] leading-tight line-clamp-2">{d.title}</div>
+                    {d.author && <div className="text-[11px] text-[#9AA096]">by {d.author}</div>}
+                  </div>
+                  <a href={d.ebook_file_url} target="_blank" rel="noopener noreferrer" download data-testid={`download-btn-${d.product_id}`} className="pill pill-primary !py-2 !px-3.5 !text-xs shrink-0">
+                    <Download className="h-3.5 w-3.5" /> Download
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {/* Retreats */}
         {retreats.length > 0 && (

@@ -1,19 +1,22 @@
 import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ExternalLink, ShoppingBag, ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { cart } from "@/lib/cart";
+import { useAuth } from "@/lib/auth";
 import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
 import CartBadge from "@/components/CartBadge";
 import HeartButton from "@/components/HeartButton";
 import BundleOffer from "@/components/BundleOffer";
 import CreditNudge from "@/components/CreditNudge";
+import PaymentButtons from "@/components/PaymentButtons";
 
 export default function ProductDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const { user } = useAuth();
   const [p, setP] = useState(null);
   const [bundle, setBundle] = useState(null);
   const [size, setSize] = useState(null);
@@ -37,6 +40,9 @@ export default function ProductDetail() {
 
   const stock = Math.max(0, p.stock_qty || 0);
   const outOfStock = stock === 0;
+  const isBook = p.type === "book";       // physical book — sold on Amazon
+  const isEbook = p.type === "ebook";     // digital download — sold here
+  const isPhysical = !isBook && !isEbook;
 
   const addToCart = () => {
     if (outOfStock) return;
@@ -115,15 +121,21 @@ export default function ProductDetail() {
               </>
             )}
           </div>
-          <div className={`text-xs font-semibold uppercase tracking-widest ${outOfStock ? "text-[#B25A45]" : "text-[#839682]"}`} data-testid="product-stock">
-            {outOfStock ? "Sold out" : `${stock} in stock`}
-          </div>
+          {isPhysical && (
+            <div className={`text-xs font-semibold uppercase tracking-widest ${outOfStock ? "text-[#B25A45]" : "text-[#839682]"}`} data-testid="product-stock">
+              {outOfStock ? "Sold out" : `${stock} in stock`}
+            </div>
+          )}
+          {isEbook && (
+            <div className="text-xs font-semibold uppercase tracking-widest text-[#839682]" data-testid="product-ebook-badge">Instant download</div>
+          )}
         </div>
+        {p.author && <div className="text-sm text-[#6B7269] -mt-3" data-testid="product-author">by {p.author}</div>}
         <p className="text-[15px] text-[#545E56] leading-relaxed">{p.description}</p>
 
         <CreditNudge testId="product-credit-nudge" />
 
-        {p.variants?.length > 0 && (
+        {isPhysical && p.variants?.length > 0 && (
           <div>
             <div className="eyebrow mb-2">Size</div>
             <div className="flex gap-2 flex-wrap" data-testid="product-sizes">
@@ -141,7 +153,7 @@ export default function ProductDetail() {
           </div>
         )}
 
-        {!outOfStock && (
+        {isPhysical && !outOfStock && (
           <div className="flex items-center gap-3">
             <div className="eyebrow">Quantity</div>
             <div className="flex items-center gap-2">
@@ -152,14 +164,35 @@ export default function ProductDetail() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <button onClick={addToCart} disabled={outOfStock} data-testid="product-add" className="pill pill-ghost">
-            <ShoppingBag className="h-4 w-4" /> Add to cart
-          </button>
-          <button onClick={buyNow} disabled={outOfStock} data-testid="product-buy" className="pill pill-primary">
-            Buy now
-          </button>
-        </div>
+        {isPhysical && (
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={addToCart} disabled={outOfStock} data-testid="product-add" className="pill pill-ghost">
+              <ShoppingBag className="h-4 w-4" /> Add to cart
+            </button>
+            <button onClick={buyNow} disabled={outOfStock} data-testid="product-buy" className="pill pill-primary">
+              Buy now
+            </button>
+          </div>
+        )}
+
+        {isEbook && (
+          <div className="space-y-2" data-testid="ebook-purchase">
+            {user ? (
+              <PaymentButtons itemType="product" itemId={p.id} stripeLabel={`Get the eBook · €${p.price}`} testIdPrefix="ebook-pay" size="lg" />
+            ) : (
+              <Link to={`/login?next=/shop/${p.id}`} data-testid="ebook-signin" className="pill pill-primary w-full !py-3.5">
+                Sign in to get the eBook · €{p.price}
+              </Link>
+            )}
+            <p className="text-xs text-[#6B7269] text-center">Instant PDF download after purchase — find it in Profile → My library.</p>
+          </div>
+        )}
+
+        {isBook && (
+          <a href={p.external_amazon_link || "#"} target="_blank" rel="noopener noreferrer" data-testid="product-amazon" className="pill pill-primary w-full !py-3.5">
+            Buy on Amazon <ExternalLink className="h-4 w-4" />
+          </a>
+        )}
 
         {bundle && (
           <BundleOffer
@@ -171,15 +204,15 @@ export default function ProductDetail() {
           />
         )}
 
-        {p.external_amazon_link && (
+        {!isBook && p.external_amazon_link && (
           <a
             href={p.external_amazon_link}
             target="_blank"
             rel="noopener noreferrer"
-            data-testid="product-amazon"
+            data-testid="product-amazon-alt"
             className="pill pill-ghost w-full"
           >
-            Buy on Amazon <ExternalLink className="h-4 w-4" />
+            {isEbook ? "Prefer print? Buy on Amazon" : "Buy on Amazon"} <ExternalLink className="h-4 w-4" />
           </a>
         )}
       </div>

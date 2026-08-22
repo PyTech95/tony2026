@@ -59,6 +59,16 @@ export default function Shop() {
                         Sale
                       </span>
                     )}
+                    {p.type === "ebook" && (
+                      <span className="absolute bottom-2 left-2 z-10 rounded-full bg-[#1C221F]/85 backdrop-blur px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold text-[#E0A38F]" data-testid={`shop-ebook-${p.id}`}>
+                        eBook
+                      </span>
+                    )}
+                    {p.type === "book" && (
+                      <span className="absolute bottom-2 left-2 z-10 rounded-full bg-[#1C221F]/85 backdrop-blur px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold text-[#E0A38F]" data-testid={`shop-book-${p.id}`}>
+                        Book
+                      </span>
+                    )}
                     {p.images?.[0] ? (
                       <img src={p.images[0]} alt="" className="h-full w-full object-cover" />
                     ) : (
@@ -70,6 +80,7 @@ export default function Shop() {
                   </div>
                   <div className="p-3">
                     <div className="text-[13px] font-semibold leading-tight clamp-2">{p.title}</div>
+                    {p.author && <div className="text-[11px] text-[#9AA096] mt-0.5">by {p.author}</div>}
                     <div className="mt-1 flex items-baseline gap-1.5">
                       <span className="text-sm text-[#B25A45] font-semibold">€{p.price}</span>
                       {p.compare_at_price > p.price && <span className="text-xs text-[#9AA096] line-through">€{p.compare_at_price}</span>}

@@ -47,9 +47,42 @@ function ProductsPane() {
         price: Number(p.price), currency: p.currency, stock_qty: Number(p.stock_qty),
         compare_at_price: p.compare_at_price === "" || p.compare_at_price == null ? 0 : Number(p.compare_at_price),
         visible: p.visible !== false,
+        type: p.type || "physical",
+        author: p.author ?? "",
+        external_amazon_link: p.external_amazon_link ?? "",
+        ebook_file_url: p.ebook_file_url ?? "",
+        images: p.images || [],
       });
       toast.success("Saved");
     } catch { toast.error("Save failed"); }
+  };
+
+  const uploadImage = async (p, file) => {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const { data } = await api.post("/admin/uploads", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const raw = data?.url || data?.path || "";
+      const url = raw.startsWith("http") ? raw : `${process.env.REACT_APP_BACKEND_URL}${raw}`;
+      set(p.id, "images", [url, ...(p.images || [])]);
+      toast.success("Cover uploaded — click Save");
+    } catch { toast.error("Upload failed"); }
+  };
+
+  const removeImage = (p, idx) => set(p.id, "images", (p.images || []).filter((_, i) => i !== idx));
+
+  const uploadEbook = async (p, file) => {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const { data } = await api.post("/admin/uploads", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const raw = data?.url || data?.path || "";
+      const url = raw.startsWith("http") ? raw : `${process.env.REACT_APP_BACKEND_URL}${raw}`;
+      set(p.id, "ebook_file_url", url);
+      toast.success("eBook file uploaded — click Save");
+    } catch { toast.error("Upload failed"); }
   };
 
   const toggleVisible = async (p) => {
@@ -324,6 +357,45 @@ function ProductsPane() {
                     </button>
                     <button onClick={() => remove(p)} data-testid={`product-delete-${p.id}`} className="ml-auto text-[#B25A45] hover:opacity-70"><Trash2 className="h-4 w-4" /></button>
                   </div>
+
+                  {(p.category === "books" || p.type === "book" || p.type === "ebook") && (
+                    <div className="mt-1 rounded-xl bg-[#F7F2EC] border border-[#E7D9CB] p-3 space-y-2" data-testid={`book-options-${p.id}`}>
+                      <div className="text-[10px] uppercase tracking-widest font-bold text-[#B25A45]">Book & digital options</div>
+                      <div>
+                        <div className="text-[11px] font-semibold text-[#6B7269] mb-1.5">Cover image</div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {(p.images || []).map((img, i) => (
+                            <div key={i} className="relative h-16 w-12 rounded-md overflow-hidden bg-white border border-[#E5E6DF]" data-testid={`product-image-${p.id}-${i}`}>
+                              <img src={img} alt="" className="h-full w-full object-cover" />
+                              <button onClick={() => removeImage(p, i)} data-testid={`product-image-remove-${p.id}-${i}`} className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-[#1C221F]/80 text-white text-[10px] leading-none flex items-center justify-center">×</button>
+                            </div>
+                          ))}
+                          <label className="pill pill-ghost !py-1.5 !px-3 !text-xs cursor-pointer" data-testid={`product-image-upload-${p.id}`}>
+                            <Plus className="h-3.5 w-3.5" /> Upload cover
+                            <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadImage(p, e.target.files?.[0])} />
+                          </label>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <select className={ic} value={p.type || "physical"} onChange={(e) => set(p.id, "type", e.target.value)} data-testid={`product-type-${p.id}`}>
+                          <option value="physical">Physical (add to cart)</option>
+                          <option value="book">Print book (Amazon only)</option>
+                          <option value="ebook">eBook (sold here, digital)</option>
+                        </select>
+                        <input className={ic} value={p.author || ""} onChange={(e) => set(p.id, "author", e.target.value)} placeholder="Author (e.g. Tony Sanchez)" data-testid={`product-author-${p.id}`} />
+                      </div>
+                      <input className={ic} value={p.external_amazon_link || ""} onChange={(e) => set(p.id, "external_amazon_link", e.target.value)} placeholder="Amazon link (https://...)" data-testid={`product-amazon-${p.id}`} />
+                      {p.type === "ebook" && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <input className={`${ic} flex-1`} value={p.ebook_file_url || ""} onChange={(e) => set(p.id, "ebook_file_url", e.target.value)} placeholder="eBook file URL (PDF/EPUB)" data-testid={`product-ebook-url-${p.id}`} />
+                          <label className="pill pill-ghost !py-1.5 !px-3 !text-xs cursor-pointer shrink-0" data-testid={`product-ebook-upload-${p.id}`}>
+                            <Plus className="h-3.5 w-3.5" /> Upload
+                            <input type="file" accept=".pdf,.epub,application/pdf,application/epub+zip" className="hidden" onChange={(e) => uploadEbook(p, e.target.files?.[0])} />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </li>

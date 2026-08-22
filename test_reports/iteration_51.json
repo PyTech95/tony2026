@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 51 testing of (A) admin book price/cover editing, (B) upgraded voice-first AI assistant + enriched knowledge base, (C) € currency regression. Backend: 12 pytest cases (assistant config/chat/knowledge/session/lead + admin product PATCH persistence + passes catalog) — 11 pass, 1 fail (assistant quotes rounded prices). Frontend: assistant widget auto-open/voice-mode/text-fallback/close, lead capture end-to-end, admin book-options panel (price + cover-image upload persistence verified with reload), /passes and /cart € regression, books regression (print → Amazon, eBook detail + Profile 'My library' download). No uncaught JS errors and no 4xx/5xx API calls observed in any flow.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/assistant/chat", "issue": "_catalog_text() in routers/assistant.py rounds all prices (round(p['price'])), so the assistant quotes the €14.99 Pranayama eBook as '€15' — a wrong price quoted to customers. Reproduced twice: 'It's €15 as an instant-download eBook'. Fix: format with 2 decimals (strip trailing .00) for products/programs/retreats."},
+      {"endpoint": "POST /api/assistant/chat", "issue": "Membership plan names in the knowledge base are raw i18n keys (db.membership_plans.name = 'i18n:memb.plan.essential.name'). The LLM currently guesses readable names ('Essential', 'Unlimited', 'Annual') from the key text — fragile; resolve i18n keys (or fall back to tier) before injecting into the catalog prompt."},
+      {"endpoint": "POST /api/assistant/lead", "issue": "social_whatsapp setting is unset, so whatsapp_url is always '' — the assistant persona and the post-lead message both promise 'message us on WhatsApp below' while no WhatsApp CTA renders. Either seed social_whatsapp or make the copy conditional."},
+      {"endpoint": "PATCH /api/admin/products/{id}", "issue": "update_product strips all None values, so a field can never be explicitly cleared to null via the API (only to '' / 0 / []). Works for the current UI but is a latent limitation."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AssistantWidget", "issue": "After a lead is submitted the reply says 'You can also message us directly on WhatsApp below' but no WhatsApp button renders (whatsapp_url empty because social_whatsapp is unconfigured) — dead-end instruction.", "selector": "[data-testid=\"assistant-whatsapp\"]", "priority": "MEDIUM"},
+      {"component": "AssistantWidget", "issue": "Local `teaser` state is set (setTeaser) but never read in the render — dead state; either use it for a teaser bubble or remove.", "selector": "[data-testid=\"assistant-panel\"]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Shop / Cart seed data", "issues": ["Product 'Poster Core 26' has a size variant '11 oz' (mug attribute) and its thumbnail shows a mug — image/variant not relevant to the product (Printful seed data)."]},
+      {"screen": "Admin → Shop uploads", "issues": ["Uploaded book covers are stored under the 'retreats' folder (returned URL /api/files/tony-yoga/retreats/<id>.png) — misleading bucket/folder naming for product images."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration51.py",
+    "/app/backend/tests/probe_iteration51.py",
+    "/app/backend/tests/cleanup_iteration51.py",
+    "/app/test_reports/pytest/iter51.xml"
+  ],
+  "action_items": [
+    "Stop rounding prices in routers/assistant.py::_catalog_text — the assistant currently quotes the €14.99 eBook as €15 (wrong price to customers).",
+    "Resolve i18n membership plan names before injecting them into the assistant prompt (currently raw 'i18n:memb.plan.*' keys).",
+    "Configure social_whatsapp (or make copy conditional) so the assistant's WhatsApp promise/CTA is not a dead end.",
+    "Optional cleanup: remove unused `teaser` state in AssistantWidget.jsx; store product covers in an images/products folder instead of 'retreats'."
+  ],
+  "critical_code_review_comments": [
+    "assistant.py::_catalog_text uses round() for every price — any non-integer price (14.99 eBook, sale prices) is misquoted; use a 2-decimal formatter.",
+    "AssistantWidget.jsx conversationLoop has an empty dependency array with eslint-disable while calling stopVoice/sendVoice/listenTurn closures — works today because those read refs, but it is fragile; consider wrapping the helpers in useCallback.",
+    "ProductsPane.jsx save() sends the whole product payload on every Save; fine at current scale but it silently overwrites images/type/author if two admins edit concurrently (no optimistic-concurrency check)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration51.py",
+    "/app/backend/tests/probe_iteration51.py",
+    "/app/backend/tests/cleanup_iteration51.py"
+  ],
+  "success_rate": {"backend": "92% (11/12 pytest cases)", "frontend": "100% of tested flows (assistant auto-open/voice/text/close, lead capture, admin book price+cover persistence, € on passes/cart, books regression)"},
+  "seed_data_creation": "Created 2 temporary AI leads (TEST_QA Lead51 via API, TEST_QA Widget via UI) — both deleted in cleanup_iteration51.py. Book price/cover edits (Pranayama eBook 14.99 → 16.99 + extra cover) were restored to original state (verified: price 14.99, 1 image).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "Admin tony@tonyyoga.com / TonyYoga2026! ; Student student@demo.com / Student2026! (both valid; login via demo-access chip is the most reliable path in automation — filling inputs immediately on page load can race hydration)",
+  "context_for_next_testing_agent": "Assistant knowledge is accurate for memberships (€29/€59/€999), passes (€22/€99), retreat (Tree of Yoga, Dec 2026, Málaga), 9 meditations and all 3 books, and recommends Core 26+ for beginners; session memory works. Only defect: prices are rounded in the prompt (eBook quoted €15 vs real €14.99) — test_ebook_price_not_rounded documents this and should pass after the fix. Voice mode: headless Chromium grants a fake mic, so clicking assistant-voice-start does enter speaking→listening mode with no crash; the real hands-free loop cannot be validated. Admin book editing (price + cover upload + type/author/amazon/ebook fields) fully verified with reload persistence. Passes/Cart/eBook detail pages contain zero '$'.",
+  "rca_of_the_issue": "Wrong price quoting root cause: routers/assistant.py::_catalog_text builds the LLM system prompt with f\"€{round(b.get('price', 0))}\" for books (and similar round() calls for programs/retreats). round(14.99) → 15, so the grounded catalog itself contains the wrong figure and the model faithfully repeats €15. Repro: POST /api/assistant/chat {'message':'How much is the Pranayama and Meditation digital guide?'} → 'It's €15…'. Mitigation: format prices with two decimals (e.g. f\"€{price:.2f}\".rstrip('0').rstrip('.'))."
+}
