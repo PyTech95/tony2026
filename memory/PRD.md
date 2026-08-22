@@ -303,6 +303,10 @@ User choices: Printful auto-confirm BUT only on LIVE payments (skip in sandbox);
 - **Credit Countdown**: `components/CreditIndicator.jsx` — subtle top-nav pill (gift icon + $amount, links to /shop) in AppShell for logged-in non-staff members with credit>0. Profile gift-card section gains a `profile-credit-apply` "€X is ready — apply it at checkout · Shop →" CTA. VERIFIED (screenshot: nav pill "$675.00").
 - NOTE: new credit UI (nudge/indicator) shows "$" to match PaymentButtons/checkout context; Profile balance shows "€" (store_credit is nominally EUR, applied 1:1 — known cosmetic inconsistency).
 
+## Bulk product delete (2026-08-22)
+- POST `/api/admin/products/bulk-delete` {ids:[...]} (admin) → delete_many, returns {deleted}; 400 on empty ids. (content.py)
+- `ProductsPane.jsx`: each product row has a checkbox (`product-checkbox-<id>`), a "Select all"/"Deselect all" toggle (`products-select-all`), and a "Delete selected (N)" button (`products-bulk-delete`) with a window.confirm. Selected rows highlight amber. VERIFIED (curl + screenshot).
+
 
 - DISCOVER: backend GET /api/discover (unified programs + on-demand classes, filters: type/level/style/focus/language/duration bucket/teacher/q) + GET /api/discover/facets (DATA-DRIVEN — only returns focus areas/languages actually present, so no dead chips). Program model gained focus_areas/intensity/language; backfill tags all 3 programs + 69 videos (rotating focus so all 8 areas have content). New public page /app/frontend/src/pages/Discover.jsx (/discover route): search + type tabs + collapsible filter panel + responsive card grid → links to /programs/:id or /library/:id.
 - HOMEPAGE: Marketing.jsx new DiscoverStrip ("Explore the library" CTA → /discover) + ComingSoon strip (Yoga Nidra, Breathwork, Private sessions, Teacher training, Challenges — teaser cards, no dead links). (Renamed Meditations→Yoga Nidra to avoid clash with existing Meditation-style classes.)

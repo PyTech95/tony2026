@@ -529,6 +529,17 @@ async def delete_product(product_id: str, request: Request):
     return {"ok": True}
 
 
+@api.post("/admin/products/bulk-delete")
+async def bulk_delete_products(request: Request):
+    await require_role(request, ["admin"])
+    body = await request.json()
+    ids = [str(i) for i in (body or {}).get("ids", []) if i]
+    if not ids:
+        raise HTTPException(400, "No product ids provided")
+    res = await db.products.delete_many({"id": {"$in": ids}})
+    return {"ok": True, "deleted": res.deleted_count}
+
+
 @api.get("/admin/products")
 async def admin_list_products(request: Request):
     await require_role(request, ["admin"])

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { RefreshCw, Trash2, Eye, EyeOff, Save, ShoppingBag, Plus } from "lucide-react";
+import { RefreshCw, Trash2, Eye, EyeOff, Save, ShoppingBag, Plus, CheckSquare, Square } from "lucide-react";
 import { api } from "@/lib/api";
 import Spinner from "@/components/Spinner";
 
@@ -10,9 +10,11 @@ function ProductsPane() {
   const [syncing, setSyncing] = useState(false);
   const [stores, setStores] = useState(null);
   const [storeId, setStoreId] = useState("");
+  const [selected, setSelected] = useState(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const ic = "w-full rounded-lg border border-[#E5E6DF] bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#B25A45]";
 
-  const load = () => api.get("/admin/products").then(({ data }) => setRows(data)).catch(() => setRows([]));
+  const load = () => api.get("/admin/products").then(({ data }) => { setRows(data); setSelected(new Set()); }).catch(() => setRows([]));
   const loadStatus = () => api.get("/admin/printful/status").then(({ data }) => setStatus(data)).catch(() => setStatus({ configured: false }));
   const loadStores = () => api.get("/admin/printful/stores").then(({ data }) => {
     const list = data.stores || [];
@@ -57,6 +59,27 @@ function ProductsPane() {
   const remove = async (p) => {
     if (!window.confirm(`Delete "${p.title}"?`)) return;
     try { await api.delete(`/admin/products/${p.id}`); load(); } catch { toast.error("Failed"); }
+  };
+
+  const toggleSelect = (id) => setSelected((s) => {
+    const n = new Set(s);
+    n.has(id) ? n.delete(id) : n.add(id);
+    return n;
+  });
+  const allSelected = rows && rows.length > 0 && selected.size === rows.length;
+  const toggleSelectAll = () => setSelected(allSelected ? new Set() : new Set((rows || []).map((p) => p.id)));
+
+  const bulkDelete = async () => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} selected product${ids.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    setBulkBusy(true);
+    try {
+      const { data } = await api.post("/admin/products/bulk-delete", { ids });
+      toast.success(`Deleted ${data.deleted} product${data.deleted === 1 ? "" : "s"}`);
+      load();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Delete failed"); }
+    finally { setBulkBusy(false); }
   };
 
   const selectedStore = (stores || []).find((s) => String(s.id) === String(storeId));
@@ -161,14 +184,41 @@ function ProductsPane() {
         )}
       </div>
 
-      <div className="eyebrow">All products {rows?.length ? `(${rows.length})` : ""}</div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="eyebrow">All products {rows?.length ? `(${rows.length})` : ""}</div>
+        {rows?.length > 0 && (
+          <div className="flex items-center gap-2" data-testid="products-bulk-bar">
+            <button onClick={toggleSelectAll} data-testid="products-select-all" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#545E56] hover:text-[#1C221F]">
+              {allSelected ? <CheckSquare className="h-4 w-4 text-[#B25A45]" /> : <Square className="h-4 w-4 text-[#9AA096]" />}
+              {allSelected ? "Deselect all" : "Select all"}
+            </button>
+            <button
+              onClick={bulkDelete}
+              disabled={selected.size === 0 || bulkBusy}
+              data-testid="products-bulk-delete"
+              className="pill !py-1.5 !px-3 !text-xs !bg-[#B25A45] !text-white hover:!bg-[#9c4c39] disabled:!bg-[#E5E6DF] disabled:!text-[#9AA096] disabled:cursor-not-allowed"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> {bulkBusy ? "Deleting…" : `Delete selected${selected.size ? ` (${selected.size})` : ""}`}
+            </button>
+          </div>
+        )}
+      </div>
       {rows === null ? <Spinner /> : rows.length === 0 ? (
         <p className="text-sm text-[#6B7269] rounded-2xl bg-[#F2F2EC] p-5">No products yet. Sync from Printful or add manually.</p>
       ) : (
         <ul className="space-y-3" data-testid="products-list">
           {rows.map((p) => (
-            <li key={p.id} className="rounded-2xl bg-white border border-[#E5E6DF] p-3" data-testid={`product-row-${p.id}`}>
+            <li key={p.id} className={`rounded-2xl bg-white border p-3 transition-colors ${selected.has(p.id) ? "border-[#B25A45] bg-[#FBF6EC]" : "border-[#E5E6DF]"}`} data-testid={`product-row-${p.id}`}>
               <div className="flex gap-3">
+                <label className="flex items-center shrink-0 cursor-pointer pl-0.5" data-testid={`product-select-${p.id}`}>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(p.id)}
+                    onChange={() => toggleSelect(p.id)}
+                    className="h-4 w-4 accent-[#B25A45]"
+                    data-testid={`product-checkbox-${p.id}`}
+                  />
+                </label>
                 <div className="h-16 w-16 shrink-0 rounded-lg bg-[#F2F2EC] overflow-hidden">
                   {p.images?.[0] && <img src={p.images[0]} alt="" className="h-full w-full object-cover" />}
                 </div>
