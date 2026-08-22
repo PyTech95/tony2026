@@ -562,7 +562,8 @@ async def admin_list_products(request: Request):
 async def list_products(category: Optional[str] = None):
     query: Dict[str, Any] = {"visible": {"$ne": False}}
     if category: query["category"] = category
-    return await db.products.find(query, {"_id": 0}).to_list(500)
+    # Featured/pinned products first, then newest.
+    return await db.products.find(query, {"_id": 0}).sort([("featured", -1), ("created_at", -1)]).to_list(500)
 
 
 @api.get("/products/{product_id}/bundle")

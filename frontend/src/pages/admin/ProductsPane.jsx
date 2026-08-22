@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { RefreshCw, Trash2, Eye, EyeOff, Save, ShoppingBag, Plus, CheckSquare, Square } from "lucide-react";
+import { RefreshCw, Trash2, Eye, EyeOff, Save, ShoppingBag, Plus, CheckSquare, Square, Star } from "lucide-react";
 import { api } from "@/lib/api";
 import Spinner from "@/components/Spinner";
 
@@ -54,6 +54,15 @@ function ProductsPane() {
     const v = !(p.visible !== false);
     set(p.id, "visible", v);
     try { await api.patch(`/admin/products/${p.id}`, { visible: v }); } catch { toast.error("Failed"); }
+  };
+
+  const toggleFeatured = async (p) => {
+    const v = !p.featured;
+    set(p.id, "featured", v);
+    try {
+      await api.patch(`/admin/products/${p.id}`, { featured: v });
+      toast.success(v ? "Pinned to top of shop" : "Unpinned");
+    } catch { toast.error("Failed"); set(p.id, "featured", !v); }
   };
 
   const remove = async (p) => {
@@ -264,6 +273,9 @@ function ProductsPane() {
                     <button onClick={() => save(p)} data-testid={`product-save-${p.id}`} className="pill pill-primary !py-1.5 !px-3 !text-xs"><Save className="h-3.5 w-3.5" /> Save</button>
                     <button onClick={() => toggleVisible(p)} data-testid={`product-visible-${p.id}`} className="pill pill-ghost !py-1.5 !px-3 !text-xs">
                       {p.visible !== false ? <><Eye className="h-3.5 w-3.5" /> Visible</> : <><EyeOff className="h-3.5 w-3.5" /> Hidden</>}
+                    </button>
+                    <button onClick={() => toggleFeatured(p)} data-testid={`product-feature-${p.id}`} className={`pill !py-1.5 !px-3 !text-xs ${p.featured ? "!bg-[#F7ECE8] !text-[#B25A45] !border-[#E0C4BB]" : "pill-ghost"}`}>
+                      <Star className={`h-3.5 w-3.5 ${p.featured ? "fill-[#B25A45]" : ""}`} /> {p.featured ? "Featured" : "Feature"}
                     </button>
                     <button onClick={() => remove(p)} data-testid={`product-delete-${p.id}`} className="ml-auto text-[#B25A45] hover:opacity-70"><Trash2 className="h-4 w-4" /></button>
                   </div>

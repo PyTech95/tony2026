@@ -317,6 +317,11 @@ User choices: Printful auto-confirm BUT only on LIVE payments (skip in sandbox);
 - BULK HIDE/SHOW: POST `/api/admin/products/bulk-visibility` {ids, visible} (update_many). ProductsPane adds "Hide" (`products-bulk-hide`) + "Show" (`products-bulk-show`) buttons next to Delete.
 - MULTIPLE PRODUCT PHOTOS: ProductDetail.jsx now renders a gallery (`product-gallery`, main `product-gallery-main`, thumbs `product-thumb-<i>`) from p.images (mockups + catalog + print files). VERIFIED via screenshot (3 thumbs, switching works, images load).
 - NOTE: WooCommerce Consumer key/secret the user pasted are NOT used (shop runs on Printful, not WooCommerce); advised user to rotate the shared secret.
+
+## Shop polish batch 2 (2026-08-22) — swipe gallery, quiz banner, featured products
+- SWIPE GALLERY: ProductDetail.jsx main image now has prev/next arrows (`product-gallery-prev/next`), dot indicators, and touch swipe (onTouchStart/End, 40px threshold) with wrap-around; thumbnails retained.
+- HOMEPAGE QUIZ BANNER: Marketing.jsx `QuizBanner` (`home-quiz-banner` + `home-quiz-banner-cta`) — bold dark section "Find your path in 60 seconds." with glow accents + Take-the-quiz CTA to /find-your-path, placed after <Programs/>.
+- FEATURED PRODUCTS: added `featured` bool to ProductUpdate; GET /products sorts `[('featured',-1),('created_at',-1)]` so pinned show first. Admin ProductsPane per-row Star toggle (`product-feature-<id>`, PATCH featured). Shop grid shows a "Featured" badge (`shop-featured-<id>`). VERIFIED: featuring a product moved it to shop position #1.
 - POST `/api/admin/products/bulk-delete` {ids:[...]} (admin) → delete_many, returns {deleted}; 400 on empty ids. (content.py)
 - `ProductsPane.jsx`: each product row has a checkbox (`product-checkbox-<id>`), a "Select all"/"Deselect all" toggle (`products-select-all`), and a "Delete selected (N)" button (`products-bulk-delete`) with a window.confirm. Selected rows highlight amber. VERIFIED (curl + screenshot).
 

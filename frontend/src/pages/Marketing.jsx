@@ -350,6 +350,35 @@ function Footer() {
   );
 }
 
+function QuizBanner() {
+  return (
+    <section className="px-5 py-14 sm:py-20" data-testid="home-quiz-banner">
+      <div className="mx-auto max-w-5xl rounded-[2rem] bg-[#1C221F] text-[#FAFAF7] px-6 sm:px-12 py-12 sm:py-16 relative overflow-hidden">
+        <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-[#B25A45]/20 blur-3xl" />
+        <div className="absolute -left-10 -bottom-20 h-56 w-56 rounded-full bg-[#839682]/15 blur-3xl" />
+        <div className="relative">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] uppercase tracking-widest font-bold text-[#E0A38F]">
+            <Compass className="h-3.5 w-3.5" /> Not sure where to start?
+          </div>
+          <h2 className="serif text-4xl sm:text-5xl leading-[1.05] mt-4 max-w-2xl">
+            Find your path in <span className="text-[#E0A38F]">60 seconds</span>.
+          </h2>
+          <p className="text-[15px] sm:text-lg text-[#B7BEB4] mt-4 max-w-xl leading-relaxed">
+            Answer five quick questions and we'll match you with the right Core program and membership — built around your goals, level and schedule.
+          </p>
+          <Link
+            to="/find-your-path"
+            data-testid="home-quiz-banner-cta"
+            className="pill mt-7 !bg-[#B25A45] !text-white hover:!bg-[#9c4c39] !py-3.5 !px-7 text-base"
+          >
+            Take the quiz <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function DiscoverStrip() {
   return (
     <section id="discover" className="mx-auto max-w-6xl px-4 sm:px-6 py-14 sm:py-20">
@@ -440,6 +469,7 @@ export default function Marketing() {
       <Story />
       <ValueProps />
       <Programs />
+      <QuizBanner />
       <DiscoverStrip />
       <ComingSoon />
       <Retreats />

@@ -257,6 +257,7 @@ class ProductUpdate(BaseModel):
     stock_qty: Optional[int] = None
     images: Optional[List[str]] = None
     visible: Optional[bool] = None
+    featured: Optional[bool] = None
     external_amazon_link: Optional[str] = None
 
 class AsanaCreate(BaseModel):

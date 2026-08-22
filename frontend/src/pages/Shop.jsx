@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Flower2 } from "lucide-react";
+import { Flower2, Star } from "lucide-react";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import Spinner from "@/components/Spinner";
@@ -48,7 +48,12 @@ export default function Shop() {
                   data-testid={`shop-item-${p.id}`}
                   className="block rounded-2xl overflow-hidden bg-white border border-[#E5E6DF] hover:border-[#B25A45] transition"
                 >
-                  <div className="aspect-square bg-[#F2F2EC] overflow-hidden">
+                  <div className="relative aspect-square bg-[#F2F2EC] overflow-hidden">
+                    {p.featured && (
+                      <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-[#1C221F]/85 backdrop-blur px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold text-[#E0A38F]" data-testid={`shop-featured-${p.id}`}>
+                        <Star className="h-3 w-3 fill-[#E0A38F]" /> Featured
+                      </span>
+                    )}
                     {p.images?.[0] ? (
                       <img src={p.images[0]} alt="" className="h-full w-full object-cover" />
                     ) : (

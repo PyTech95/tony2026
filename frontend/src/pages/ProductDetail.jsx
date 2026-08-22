@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ExternalLink, ShoppingBag } from "lucide-react";
+import { ExternalLink, ShoppingBag, ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { cart } from "@/lib/cart";
 import PageHeader from "@/components/PageHeader";
@@ -19,6 +19,10 @@ export default function ProductDetail() {
   const [size, setSize] = useState(null);
   const [qty, setQty] = useState(1);
   const [activeImg, setActiveImg] = useState(0);
+  const touchX = useRef(null);
+  const imgCount = p?.images?.length || 0;
+  const nextImg = () => setActiveImg((i) => (imgCount ? (i + 1) % imgCount : 0));
+  const prevImg = () => setActiveImg((i) => (imgCount ? (i - 1 + imgCount) % imgCount : 0));
 
   useEffect(() => {
     api.get(`/products/${id}`).then(({ data }) => {
@@ -53,8 +57,34 @@ export default function ProductDetail() {
       <div className="mx-auto max-w-2xl px-5 space-y-6">
         {p.images?.length > 0 && (
           <div className="space-y-3" data-testid="product-gallery">
-            <div className="rounded-3xl overflow-hidden aspect-[4/5] bg-[#F2F2EC]">
-              <img src={p.images[activeImg] || p.images[0]} alt={p.title} className="h-full w-full object-cover" data-testid="product-gallery-main" />
+            <div
+              className="relative rounded-3xl overflow-hidden aspect-[4/5] bg-[#F2F2EC] group"
+              onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
+              onTouchEnd={(e) => {
+                if (touchX.current == null) return;
+                const dx = e.changedTouches[0].clientX - touchX.current;
+                if (Math.abs(dx) > 40) dx < 0 ? nextImg() : prevImg();
+                touchX.current = null;
+              }}
+            >
+              <img src={p.images[activeImg] || p.images[0]} alt={p.title} className="h-full w-full object-cover select-none" data-testid="product-gallery-main" />
+              {p.images.length > 1 && (
+                <>
+                  <button onClick={prevImg} data-testid="product-gallery-prev" aria-label="Previous photo"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-white/85 backdrop-blur flex items-center justify-center shadow-md hover:bg-white transition-colors">
+                    <ChevronLeft className="h-5 w-5 text-[#1C221F]" />
+                  </button>
+                  <button onClick={nextImg} data-testid="product-gallery-next" aria-label="Next photo"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-white/85 backdrop-blur flex items-center justify-center shadow-md hover:bg-white transition-colors">
+                    <ChevronRight className="h-5 w-5 text-[#1C221F]" />
+                  </button>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                    {p.images.map((_, i) => (
+                      <span key={i} className={`h-1.5 rounded-full transition-all ${i === activeImg ? "w-5 bg-[#B25A45]" : "w-1.5 bg-white/70"}`} />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
             {p.images.length > 1 && (
               <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
